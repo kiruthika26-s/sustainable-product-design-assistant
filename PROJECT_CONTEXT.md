@@ -41,7 +41,6 @@ The Sustainable Product Design Assistant helps manufacturers and product designe
   - Modular backend folder structure prepared (`config/`, `controllers/`, `middleware/`, `models/`, `routes/`).
 
 ### In-Progress
-- **Database Connection**: MongoDB connection logic is added to `server/server.js` (currently commented out) and connection test script exists in `server/test.js`.
 - **API & UI Integration**: Connecting front-end form inputs to back-end endpoints.
 
 ### Planned Core Modules
@@ -50,5 +49,5 @@ The Sustainable Product Design Assistant helps manufacturers and product designe
 - [ ] **Recyclability Score Calculation Engine**: Dynamic algorithm evaluating material, weight, and packaging metrics.
 - [ ] **Material Recommendation System**: Suggestions for eco-friendly material alternatives with expected score gains.
 - [ ] **Real-Time / What-If Simulation**: Interactive frontend tool allowing users to live-simulate material changes.
-- [ ] **MongoDB Data Persistence**: Schemas and models for users, products, materials, and calculation results.
+- [x] **MongoDB Data Persistence**: Schemas and models created (`Product` model in `server/models/Product.js`).
 - [ ] **Product Version History**: Tracking version history for product iterations (stretch goal / if time permits).
