@@ -45,7 +45,7 @@ The Sustainable Product Design Assistant helps manufacturers and product designe
 
 ### Planned Core Modules
 - [ ] **Authentication Module**: User registration, login, and JWT middleware.
-- [ ] **Product Creation & Editing Module**: CRUD operations for managing product specifications.
+- [x] **Product Creation & Editing Module**: CRUD operations for managing product specifications (`/api/products`).
 - [ ] **Recyclability Score Calculation Engine**: Dynamic algorithm evaluating material, weight, and packaging metrics.
 - [ ] **Material Recommendation System**: Suggestions for eco-friendly material alternatives with expected score gains.
 - [ ] **Real-Time / What-If Simulation**: Interactive frontend tool allowing users to live-simulate material changes.
