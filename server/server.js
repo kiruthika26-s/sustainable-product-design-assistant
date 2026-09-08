@@ -23,6 +23,7 @@ app.get('/', (req, res) => {
 
 // Product Routes
 app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/products', require('./routes/scoringRoutes'));
 
 // Server Port
 const PORT = process.env.PORT || 5000;
