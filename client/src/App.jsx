@@ -1,39 +1,566 @@
+import { useEffect, useState } from "react";
+import {
+  calculateScore,
+  createProduct,
+  getProducts,
+  deleteProduct
+} from "./services/api";
 import "./App.css";
 
 function App() {
+  // Product details state
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("Plastic");
+  const [description, setDescription] = useState("");
+
+  // Materials array state
+  const [materials, setMaterials] = useState([
+    { name: "", weight: "", recyclabilityIndex: "" }
+  ]);
+
+  // API interaction states for Calculation
+  const [scoreResult, setScoreResult] = useState(null);
+  const [lastCalculatedPayload, setLastCalculatedPayload] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [validationErrors, setValidationErrors] = useState([]);
+
+  // API interaction states for Saving
+  const [saving, setSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+
+  // API interaction states for Saved Products List
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState(null);
+  const [deletingProductId, setDeletingProductId] = useState(null);
+
+  // Load saved products from MongoDB Atlas
+  const loadProducts = async () => {
+    setProductsLoading(true);
+    setProductsError(null);
+    try {
+      const response = await getProducts();
+      if (response && response.success) {
+        setProducts(response.data || []);
+      } else {
+        setProductsError(response.error || "Failed to load saved products.");
+      }
+    } catch (err) {
+      setProductsError(err.message || "Failed to load saved products.");
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  // Load saved products when App mounts
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  // Material list handlers
+  const handleAddMaterial = () => {
+    setMaterials([
+      ...materials,
+      { name: "", weight: "", recyclabilityIndex: "" }
+    ]);
+  };
+
+  const handleRemoveMaterial = (index) => {
+    if (materials.length > 1) {
+      setMaterials(materials.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleMaterialChange = (index, field, value) => {
+    const updated = [...materials];
+    updated[index][field] = value;
+    setMaterials(updated);
+  };
+
+  // Form validation logic
+  const validateForm = () => {
+    const errors = [];
+
+    if (!name.trim()) {
+      errors.push("Product Name is required.");
+    }
+
+    if (!category.trim()) {
+      errors.push("Category is required.");
+    }
+
+    if (!materials || materials.length === 0) {
+      errors.push("At least one material is required.");
+    } else {
+      materials.forEach((mat, idx) => {
+        const itemNum = idx + 1;
+        if (!mat.name.trim()) {
+          errors.push(`Material #${itemNum}: Name is required.`);
+        }
+        const w = Number(mat.weight);
+        if (mat.weight === "" || isNaN(w) || w <= 0) {
+          errors.push(`Material #${itemNum}: Weight must be greater than 0.`);
+        }
+        const indexVal = Number(mat.recyclabilityIndex);
+        if (
+          mat.recyclabilityIndex === "" ||
+          isNaN(indexVal) ||
+          indexVal < 0 ||
+          indexVal > 100
+        ) {
+          errors.push(
+            `Material #${itemNum}: Recyclability Index must be between 0 and 100.`
+          );
+        }
+      });
+    }
+
+    return errors;
+  };
+
+  // Submit handler calling score calculation API
+  const handleCalculateScore = async (e) => {
+    e.preventDefault();
+    setScoreResult(null);
+    setLastCalculatedPayload(null);
+    setError(null);
+    setIsSaved(false);
+    setSaveSuccess(null);
+    setSaveError(null);
+
+    const errors = validateForm();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    setValidationErrors([]);
+    setLoading(true);
+
+    const payload = {
+      name: name.trim(),
+      category: category.trim(),
+      description: description.trim(),
+      materials: materials.map((m) => ({
+        name: m.name.trim(),
+        weight: Number(m.weight),
+        recyclabilityIndex: Number(m.recyclabilityIndex)
+      }))
+    };
+
+    try {
+      const response = await calculateScore(payload);
+      if (response && response.success) {
+        setScoreResult(response.data);
+        setLastCalculatedPayload(payload);
+      } else {
+        setError(response.error || "Failed to calculate recyclability score.");
+      }
+    } catch (err) {
+      setError(
+        err.message || "Server error while calculating score. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save handler calling Product creation API
+  const handleSaveProduct = async () => {
+    if (!lastCalculatedPayload || isSaved) return;
+
+    setSaving(true);
+    setSaveSuccess(null);
+    setSaveError(null);
+
+    try {
+      const response = await createProduct(lastCalculatedPayload);
+      if (response && response.success) {
+        const savedId = response.data?._id || response.data?.id;
+        setIsSaved(true);
+        setSaveSuccess(
+          `Product saved successfully! ${
+            savedId ? `(ID: ${savedId})` : ""
+          }`
+        );
+        // Refresh product history list automatically
+        loadProducts();
+      } else {
+        setSaveError(response.error || "Failed to save product.");
+      }
+    } catch (err) {
+      setSaveError(
+        err.message || "Server error while saving product. Please try again."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete handler calling Product deletion API
+  const handleDeleteProduct = async (id) => {
+    setDeletingProductId(id);
+    try {
+      const response = await deleteProduct(id);
+      if (response && response.success) {
+        setProducts((prev) => prev.filter((p) => (p._id || p.id) !== id));
+      } else {
+        alert(response.error || "Failed to delete product.");
+      }
+    } catch (err) {
+      alert(err.message || "Failed to delete product. Please try again.");
+    } finally {
+      setDeletingProductId(null);
+    }
+  };
+
   return (
     <div className="container">
-      <h1>Sustainable Product Lifecycle Management Platform</h1>
+      <header className="header">
+        <h1>Sustainable Product Lifecycle Management Platform</h1>
+        <p className="subtitle">
+          Real-time Recyclability Score & Material Sustainability Assessment
+        </p>
+      </header>
 
-      <div className="card">
-        <h2>Product Details</h2>
+      <main className="main-content">
+        {/* Left Side: Product Input Form */}
+        <section className="card form-card">
+          <h2>Product Specification</h2>
 
-        <input
-          type="text"
-          placeholder="Product Name"
-        />
+          <form onSubmit={handleCalculateScore}>
+            <div className="form-group">
+              <label htmlFor="productName">Product Name *</label>
+              <input
+                id="productName"
+                type="text"
+                placeholder="e.g. Eco Friendly Water Bottle"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
 
-        <input
-          type="text"
-          placeholder="Material"
-        />
+            <div className="form-group">
+              <label htmlFor="productCategory">Category *</label>
+              <select
+                id="productCategory"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                <option value="Plastic">Plastic</option>
+                <option value="Paper">Paper</option>
+                <option value="Glass">Glass</option>
+                <option value="Metal">Metal</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
 
-        <input
-          type="number"
-          placeholder="Weight (kg)"
-        />
+            <div className="form-group">
+              <label htmlFor="productDescription">Description (Optional)</label>
+              <textarea
+                id="productDescription"
+                placeholder="Brief description of product features..."
+                rows="2"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
 
-        <select>
-          <option>Plastic</option>
-          <option>Paper</option>
-          <option>Glass</option>
-          <option>Metal</option>
-        </select>
+            {/* Materials List Section */}
+            <div className="materials-section">
+              <div className="section-header">
+                <h3>Materials Composition</h3>
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  onClick={handleAddMaterial}
+                >
+                  + Add Material
+                </button>
+              </div>
 
-        <button>Calculate Recyclability Score</button>
+              {materials.map((mat, index) => (
+                <div key={index} className="material-item-card">
+                  <div className="material-item-header">
+                    <span>Material #{index + 1}</span>
+                    {materials.length > 1 && (
+                      <button
+                        type="button"
+                        className="btn-danger-text"
+                        onClick={() => handleRemoveMaterial(index)}
+                        title="Remove Material"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
 
-        <h3>Recyclability Score: 85%</h3>
-      </div>
+                  <div className="form-group">
+                    <input
+                      type="text"
+                      placeholder="Material Name (e.g. PET Plastic)"
+                      value={mat.name}
+                      onChange={(e) =>
+                        handleMaterialChange(index, "name", e.target.value)
+                      }
+                    />
+                  </div>
+
+                  <div className="form-row">
+                    <div className="form-group col">
+                      <label>Weight (kg) *</label>
+                      <input
+                        type="number"
+                        min="0.001"
+                        step="0.001"
+                        placeholder="e.g. 0.25"
+                        value={mat.weight}
+                        onChange={(e) =>
+                          handleMaterialChange(index, "weight", e.target.value)
+                        }
+                      />
+                    </div>
+
+                    <div className="form-group col">
+                      <label>Recyclability Index (0-100) *</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        placeholder="e.g. 85"
+                        value={mat.recyclabilityIndex}
+                        onChange={(e) =>
+                          handleMaterialChange(
+                            index,
+                            "recyclabilityIndex",
+                            e.target.value
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Validation Errors Banner */}
+            {validationErrors.length > 0 && (
+              <div className="error-banner">
+                <strong>Please fix the following errors:</strong>
+                <ul>
+                  {validationErrors.map((err, i) => (
+                    <li key={i}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* API Calculation Error Alert */}
+            {error && <div className="error-banner">{error}</div>}
+
+            <button
+              type="submit"
+              className="btn-primary btn-submit"
+              disabled={loading}
+            >
+              {loading ? "Calculating..." : "Calculate Recyclability Score"}
+            </button>
+          </form>
+        </section>
+
+        {/* Right Side: Score Results Display & Save Section */}
+        <section className="card result-card">
+          <h2>Recyclability Assessment</h2>
+
+          {loading ? (
+            <div className="loading-container">
+              <div className="spinner"></div>
+              <p>Calculating sustainability score from backend engine...</p>
+            </div>
+          ) : scoreResult ? (
+            <div className="results-container">
+              {/* Overall Score Badge */}
+              <div
+                className={`score-badge-card grade-${scoreResult.grade?.toLowerCase()}`}
+              >
+                <div className="score-number">{scoreResult.finalScore}%</div>
+                <div className="score-details">
+                  <span className="grade-pill">Grade {scoreResult.grade}</span>
+                  <span className="rating-text">{scoreResult.rating}</span>
+                </div>
+              </div>
+
+              {/* Score Breakdown Table */}
+              <div className="breakdown-section">
+                <h3>Score Breakdown</h3>
+                <div className="breakdown-list">
+                  <div className="breakdown-item">
+                    <span>Base Weighted Score</span>
+                    <strong>{scoreResult.baseWeightedScore}%</strong>
+                  </div>
+                  <div className="breakdown-item penalty">
+                    <span>Mixed Material Penalty</span>
+                    <strong>-{scoreResult.penalties?.mixedMaterialPenalty} pts</strong>
+                  </div>
+                  <div className="breakdown-item penalty">
+                    <span>Contamination Penalty</span>
+                    <strong>-{scoreResult.penalties?.contaminationPenalty} pts</strong>
+                  </div>
+                  <div className="breakdown-item total-penalty">
+                    <span>Total Penalty Deductions</span>
+                    <strong>-{scoreResult.penalties?.totalPenalty} pts</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Material Percentages Table */}
+              {scoreResult.materialBreakdown &&
+                scoreResult.materialBreakdown.length > 0 && (
+                  <div className="breakdown-section">
+                    <h3>Material Contribution Analysis</h3>
+                    <table className="material-table">
+                      <thead>
+                        <tr>
+                          <th>Material</th>
+                          <th>Weight</th>
+                          <th>Share</th>
+                          <th>Index</th>
+                          <th>Points</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scoreResult.materialBreakdown.map((item, idx) => (
+                          <tr key={idx}>
+                            <td>{item.name}</td>
+                            <td>{item.weight} kg</td>
+                            <td>{item.weightPercentage}%</td>
+                            <td>{item.recyclabilityIndex}/100</td>
+                            <td>+{item.contribution}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+              {/* Save Product Action Section */}
+              <div className="save-action-section">
+                {saveSuccess && (
+                  <div className="success-banner">{saveSuccess}</div>
+                )}
+                {saveError && <div className="error-banner">{saveError}</div>}
+
+                <button
+                  type="button"
+                  className="btn-success btn-save"
+                  disabled={saving || isSaved}
+                  onClick={handleSaveProduct}
+                >
+                  {saving
+                    ? "Saving..."
+                    : isSaved
+                    ? "Product Saved ✓"
+                    : "Save Product"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="placeholder-container">
+              <div className="placeholder-icon">🌱</div>
+              <p>
+                Fill out the product specifications and materials form, then
+                click <strong>"Calculate Recyclability Score"</strong> to view
+                the dynamic sustainability report.
+              </p>
+            </div>
+          )}
+        </section>
+      </main>
+
+      {/* Bottom Section: Saved Products History */}
+      <section className="saved-products-section">
+        <div className="section-header">
+          <h2>Saved Products ({products.length})</h2>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={loadProducts}
+            disabled={productsLoading}
+          >
+            {productsLoading ? "Refreshing..." : "Refresh Products"}
+          </button>
+        </div>
+
+        {productsError && (
+          <div className="error-banner">{productsError}</div>
+        )}
+
+        {productsLoading ? (
+          <div className="loading-container">
+            <div className="spinner"></div>
+            <p>Loading saved products from database...</p>
+          </div>
+        ) : products.length === 0 ? (
+          <div className="placeholder-container">
+            <p>No saved products yet.</p>
+          </div>
+        ) : (
+          <div className="products-grid">
+            {products.map((product) => {
+              const id = product._id || product.id;
+              const totalWeight = product.materials
+                ? product.materials.reduce(
+                    (sum, m) => sum + (Number(m.weight) || 0),
+                    0
+                  )
+                : 0;
+
+              return (
+                <div key={id} className="card product-card">
+                  <div className="product-card-header">
+                    <div>
+                      <h3 className="product-name">{product.name}</h3>
+                      <span className="category-tag">{product.category}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-danger-text"
+                      disabled={deletingProductId === id}
+                      onClick={() => handleDeleteProduct(id)}
+                    >
+                      {deletingProductId === id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+
+                  {product.description && (
+                    <p className="product-desc">{product.description}</p>
+                  )}
+
+                  <div className="materials-summary">
+                    <strong>Materials ({product.materials?.length || 0}):</strong>
+                    <ul className="material-tags-list">
+                      {product.materials?.map((mat, i) => (
+                        <li key={i}>
+                          <span>{mat.name}</span>
+                          <span className="mat-weight">{mat.weight} kg</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="product-card-footer">
+                    <span>Total Material Weight:</span>
+                    <strong>{totalWeight.toFixed(3)} kg</strong>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
