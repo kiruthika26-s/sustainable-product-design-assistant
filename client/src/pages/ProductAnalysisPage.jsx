@@ -1,27 +1,73 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import MaterialRowInput from "../components/scoring/MaterialRowInput";
+import {
+  calculateScore,
+  createProduct,
+  getProducts,
+  deleteProduct,
+} from "../services/api";
 
 function ProductAnalysisPage() {
   // General Product Details State
   const [productInfo, setProductInfo] = useState({
     name: "",
     category: "Packaging & Containers",
-    totalWeight: "",
     packaging: "",
+    description: "",
   });
 
-  // Dynamic Materials List State (starts with at least one row)
+  // Dynamic Materials List State
   const [materials, setMaterials] = useState([
     {
       id: 1,
       name: "",
       type: "PET (Plastic)",
       weight: "",
+      recyclabilityIndex: 85,
     },
   ]);
 
-  // Placeholder state for score calculation area
-  const [isCalculated, setIsCalculated] = useState(false);
+  // API interaction states for Calculation
+  const [scoreResult, setScoreResult] = useState(null);
+  const [lastCalculatedPayload, setLastCalculatedPayload] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [validationErrors, setValidationErrors] = useState([]);
+
+  // API interaction states for Saving
+  const [saving, setSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(null);
+  const [saveError, setSaveError] = useState(null);
+
+  // API interaction states for Saved Products List
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState(null);
+  const [deletingProductId, setDeletingProductId] = useState(null);
+
+  // Load saved products from MongoDB Atlas
+  const loadProducts = async () => {
+    setProductsLoading(true);
+    setProductsError(null);
+    try {
+      const response = await getProducts();
+      if (response && response.success) {
+        setProducts(response.data || []);
+      } else {
+        setProductsError(response.error || "Failed to load saved products.");
+      }
+    } catch (err) {
+      setProductsError(err.message || "Failed to load saved products.");
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  // Load saved products when component mounts
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
   // Handle changes to general product info inputs
   const handleProductInfoChange = (e) => {
@@ -35,10 +81,11 @@ function ProductAnalysisPage() {
   // Add a new material row
   const handleAddMaterial = () => {
     const newMaterial = {
-      id: Date.now(), // unique timestamp ID
+      id: Date.now(),
       name: "",
       type: "PET (Plastic)",
       weight: "",
+      recyclabilityIndex: 85,
     };
     setMaterials((prev) => [...prev, newMaterial]);
   };
@@ -57,34 +104,174 @@ function ProductAnalysisPage() {
     }
   };
 
-  // Handle Calculate button click
-  const handleCalculateScore = (e) => {
+  // Form validation logic
+  const validateForm = () => {
+    const errors = [];
+
+    if (!productInfo.name.trim()) {
+      errors.push("Product Name is required.");
+    }
+
+    if (!productInfo.category.trim()) {
+      errors.push("Category is required.");
+    }
+
+    if (!materials || materials.length === 0) {
+      errors.push("At least one material is required.");
+    } else {
+      materials.forEach((mat, idx) => {
+        const itemNum = idx + 1;
+        if (!mat.name.trim() && !mat.type) {
+          errors.push(`Material #${itemNum}: Name is required.`);
+        }
+        const w = Number(mat.weight);
+        if (mat.weight === "" || isNaN(w) || w <= 0) {
+          errors.push(`Material #${itemNum}: Weight must be greater than 0 kg.`);
+        }
+        const indexVal = Number(mat.recyclabilityIndex);
+        if (
+          mat.recyclabilityIndex === "" ||
+          isNaN(indexVal) ||
+          indexVal < 0 ||
+          indexVal > 100
+        ) {
+          errors.push(
+            `Material #${itemNum}: Recyclability Index must be between 0 and 100.`
+          );
+        }
+      });
+    }
+
+    return errors;
+  };
+
+  // Submit handler calling score calculation API
+  const handleCalculateScore = async (e) => {
     e.preventDefault();
-    // Placeholder trigger: calculation logic will be integrated in subsequent phase
-    setIsCalculated(true);
+    setScoreResult(null);
+    setLastCalculatedPayload(null);
+    setError(null);
+    setIsSaved(false);
+    setSaveSuccess(null);
+    setSaveError(null);
+
+    const errors = validateForm();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    setValidationErrors([]);
+    setLoading(true);
+
+    const payload = {
+      name: productInfo.name.trim(),
+      category: productInfo.category.trim(),
+      description: productInfo.description.trim(),
+      materials: materials.map((m) => ({
+        name: m.name.trim() || m.type,
+        weight: Number(m.weight),
+        recyclabilityIndex: Number(m.recyclabilityIndex),
+      })),
+    };
+
+    if (productInfo.packaging?.trim()) {
+      payload.packaging = {
+        type: productInfo.packaging.trim(),
+        material: productInfo.packaging.trim(),
+      };
+    }
+
+    try {
+      const response = await calculateScore(payload);
+      if (response && response.success) {
+        setScoreResult(response.data);
+        setLastCalculatedPayload(payload);
+      } else {
+        setError(response.error || "Failed to calculate recyclability score.");
+      }
+    } catch (err) {
+      setError(
+        err.message || "Server error while calculating score. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save handler calling Product creation API
+  const handleSaveProduct = async () => {
+    if (!lastCalculatedPayload || isSaved) return;
+
+    setSaving(true);
+    setSaveSuccess(null);
+    setSaveError(null);
+
+    try {
+      const response = await createProduct(lastCalculatedPayload);
+      if (response && response.success) {
+        const savedId = response.data?._id || response.data?.id;
+        setIsSaved(true);
+        setSaveSuccess(
+          `Product saved successfully! ${savedId ? `(ID: ${savedId})` : ""}`
+        );
+        // Refresh product history list automatically
+        loadProducts();
+      } else {
+        setSaveError(response.error || "Failed to save product.");
+      }
+    } catch (err) {
+      setSaveError(
+        err.message || "Server error while saving product. Please try again."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete handler calling Product deletion API
+  const handleDeleteProduct = async (id) => {
+    setDeletingProductId(id);
+    try {
+      const response = await deleteProduct(id);
+      if (response && response.success) {
+        setProducts((prev) => prev.filter((p) => (p._id || p.id) !== id));
+      } else {
+        alert(response.error || "Failed to delete product.");
+      }
+    } catch (err) {
+      alert(err.message || "Failed to delete product. Please try again.");
+    } finally {
+      setDeletingProductId(null);
+    }
   };
 
   const categoryOptions = [
     "Packaging & Containers",
+    "Plastic",
+    "Paper & Cardboard",
+    "Glass",
+    "Metal",
     "Consumer Electronics",
     "Fashion & Textiles",
     "Home & Furniture",
     "Automotive Parts",
-    "Toys & Recreation",
     "Other",
   ];
 
   return (
     <div className="page-container">
+      {/* Header */}
       <header className="page-header">
         <h1>Sustainable Product Design Assistant</h1>
         <p className="page-subtitle">
-          Enter your product specifications and materials to analyze recyclability and discover eco-friendly alternatives.
+          Real-time Recyclability Score & Material Sustainability Assessment
         </p>
       </header>
 
+      {/* Main 2-column Analysis Layout */}
       <div className="analysis-layout">
-        {/* Main Specification Form */}
+        {/* Left Side: Product Input Form */}
         <form className="analysis-form" onSubmit={handleCalculateScore}>
           {/* Section 1: General Product Specifications */}
           <section className="form-section card">
@@ -97,15 +284,14 @@ function ProductAnalysisPage() {
                   id="productName"
                   name="name"
                   type="text"
-                  placeholder="e.g., Eco Water Bottle, Wireless Mouse"
+                  placeholder="e.g. Eco Friendly Water Bottle"
                   value={productInfo.name}
                   onChange={handleProductInfoChange}
-                  required
                 />
               </div>
 
               <div className="form-group">
-                <label htmlFor="category">Category</label>
+                <label htmlFor="category">Category *</label>
                 <select
                   id="category"
                   name="category"
@@ -121,20 +307,6 @@ function ProductAnalysisPage() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="totalWeight">Total Estimated Weight (g)</label>
-                <input
-                  id="totalWeight"
-                  name="totalWeight"
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="Total weight in grams"
-                  value={productInfo.totalWeight}
-                  onChange={handleProductInfoChange}
-                />
-              </div>
-
-              <div className="form-group">
                 <label htmlFor="packaging">Packaging Material / Type</label>
                 <input
                   id="packaging"
@@ -142,6 +314,18 @@ function ProductAnalysisPage() {
                   type="text"
                   placeholder="e.g., Recycled Cardboard Box, Bio-film Wrap"
                   value={productInfo.packaging}
+                  onChange={handleProductInfoChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="productDescription">Description (Optional)</label>
+                <textarea
+                  id="productDescription"
+                  name="description"
+                  placeholder="Brief description of product features..."
+                  rows="2"
+                  value={productInfo.description}
                   onChange={handleProductInfoChange}
                 />
               </div>
@@ -154,7 +338,7 @@ function ProductAnalysisPage() {
               <div>
                 <h2 className="section-title">2. Materials & Components Breakdown</h2>
                 <p className="section-description">
-                  List each component part and its primary material to evaluate total recyclability.
+                  List each component part, its primary material, weight (kg), and recyclability index (0–100).
                 </p>
               </div>
               <button
@@ -180,32 +364,127 @@ function ProductAnalysisPage() {
             </div>
           </section>
 
-          {/* Form Actions */}
+          {/* Validation Errors Banner */}
+          {validationErrors.length > 0 && (
+            <div className="error-banner">
+              <strong>Please fix the following errors:</strong>
+              <ul>
+                {validationErrors.map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* API Calculation Error Alert */}
+          {error && <div className="error-banner">{error}</div>}
+
+          {/* Submit Action Button */}
           <div className="form-actions">
-            <button type="submit" className="btn-primary">
-              Calculate Recyclability Score
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={loading}
+            >
+              {loading ? "Calculating..." : "Calculate Recyclability Score"}
             </button>
           </div>
         </form>
 
-        {/* Section 3: Reserved Area for Recyclability Score & Recommendations */}
+        {/* Right Side: Recyclability Assessment Results */}
         <aside className="score-panel card">
-          <h2 className="section-title">Recyclability Analysis</h2>
-          
-          {isCalculated ? (
-            <div className="score-placeholder-active">
-              <div className="score-badge-placeholder">
-                <span className="score-number">--</span>
-                <span className="score-unit">/ 100</span>
+          <h2 className="section-title">Recyclability Assessment</h2>
+
+          {loading ? (
+            <div className="loading-container">
+              <div className="spinner"></div>
+              <p>Calculating sustainability score from backend engine...</p>
+            </div>
+          ) : scoreResult ? (
+            <div className="results-container">
+              {/* Overall Score Badge */}
+              <div
+                className={`score-badge-card grade-${scoreResult.grade?.toLowerCase()}`}
+              >
+                <div className="score-number">{scoreResult.finalScore}%</div>
+                <div className="score-details">
+                  <span className="grade-pill">Grade {scoreResult.grade}</span>
+                  <span className="rating-text">{scoreResult.rating}</span>
+                </div>
               </div>
-              <p className="score-status-text">
-                Calculation engine ready to be connected.
-              </p>
-              <div className="placeholder-info-box">
-                <h4>Calculation Insights Area</h4>
-                <p>
-                  In the next phase, the calculated recyclability score, material breakdown breakdown chart, and eco-friendly recommendations will appear here.
-                </p>
+
+              {/* Score Breakdown Table */}
+              <div className="breakdown-section">
+                <h3>Score Breakdown</h3>
+                <div className="breakdown-list">
+                  <div className="breakdown-item">
+                    <span>Base Weighted Score</span>
+                    <strong>{scoreResult.baseWeightedScore}%</strong>
+                  </div>
+                  <div className="breakdown-item penalty">
+                    <span>Mixed Material Penalty</span>
+                    <strong>-{scoreResult.penalties?.mixedMaterialPenalty} pts</strong>
+                  </div>
+                  <div className="breakdown-item penalty">
+                    <span>Contamination Penalty</span>
+                    <strong>-{scoreResult.penalties?.contaminationPenalty} pts</strong>
+                  </div>
+                  <div className="breakdown-item total-penalty">
+                    <span>Total Penalty Deductions</span>
+                    <strong>-{scoreResult.penalties?.totalPenalty} pts</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Material Percentages Table */}
+              {scoreResult.materialBreakdown &&
+                scoreResult.materialBreakdown.length > 0 && (
+                  <div className="breakdown-section">
+                    <h3>Material Contribution Analysis</h3>
+                    <table className="material-table">
+                      <thead>
+                        <tr>
+                          <th>Material</th>
+                          <th>Weight</th>
+                          <th>Share</th>
+                          <th>Index</th>
+                          <th>Points</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {scoreResult.materialBreakdown.map((item, idx) => (
+                          <tr key={idx}>
+                            <td>{item.name}</td>
+                            <td>{item.weight} kg</td>
+                            <td>{item.weightPercentage}%</td>
+                            <td>{item.recyclabilityIndex}/100</td>
+                            <td>+{item.contribution}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+              {/* Save Product Action Section */}
+              <div className="save-action-section">
+                {saveSuccess && (
+                  <div className="success-banner">{saveSuccess}</div>
+                )}
+                {saveError && <div className="error-banner">{saveError}</div>}
+
+                <button
+                  type="button"
+                  className="btn-success btn-save"
+                  disabled={saving || isSaved}
+                  onClick={handleSaveProduct}
+                >
+                  {saving
+                    ? "Saving..."
+                    : isSaved
+                    ? "Product Saved ✓"
+                    : "Save Product"}
+                </button>
               </div>
             </div>
           ) : (
@@ -213,12 +492,101 @@ function ProductAnalysisPage() {
               <div className="placeholder-icon">🌱</div>
               <h3>No Score Calculated Yet</h3>
               <p>
-                Fill out the product specifications and materials breakdown, then click <strong>"Calculate Recyclability Score"</strong> to view your sustainability report.
+                Fill out the product specifications and materials breakdown, then
+                click <strong>"Calculate Recyclability Score"</strong> to view your
+                sustainability report.
               </p>
             </div>
           )}
         </aside>
       </div>
+
+      {/* Bottom Section: Saved Products History */}
+      <section className="saved-products-section">
+        <div className="section-header-row">
+          <div>
+            <h2 className="section-title">Saved Products ({products.length})</h2>
+            <p className="section-description">
+              View and manage products saved to your MongoDB database.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={loadProducts}
+            disabled={productsLoading}
+          >
+            {productsLoading ? "Refreshing..." : "Refresh Products"}
+          </button>
+        </div>
+
+        {productsError && (
+          <div className="error-banner">{productsError}</div>
+        )}
+
+        {productsLoading ? (
+          <div className="loading-container">
+            <div className="spinner"></div>
+            <p>Loading saved products from database...</p>
+          </div>
+        ) : products.length === 0 ? (
+          <div className="placeholder-container">
+            <p>No saved products yet.</p>
+          </div>
+        ) : (
+          <div className="products-grid">
+            {products.map((product) => {
+              const id = product._id || product.id;
+              const totalWeight = product.materials
+                ? product.materials.reduce(
+                    (sum, m) => sum + (Number(m.weight) || 0),
+                    0
+                  )
+                : 0;
+
+              return (
+                <div key={id} className="card product-card">
+                  <div className="product-card-header">
+                    <div>
+                      <h3 className="product-name">{product.name}</h3>
+                      <span className="category-tag">{product.category}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-danger-text"
+                      disabled={deletingProductId === id}
+                      onClick={() => handleDeleteProduct(id)}
+                    >
+                      {deletingProductId === id ? "Deleting..." : "Delete"}
+                    </button>
+                  </div>
+
+                  {product.description && (
+                    <p className="product-desc">{product.description}</p>
+                  )}
+
+                  <div className="materials-summary">
+                    <strong>Materials ({product.materials?.length || 0}):</strong>
+                    <ul className="material-tags-list">
+                      {product.materials?.map((mat, i) => (
+                        <li key={i}>
+                          <span>{mat.name}</span>
+                          <span className="mat-weight">{mat.weight} kg</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="product-card-footer">
+                    <span>Total Material Weight:</span>
+                    <strong>{totalWeight.toFixed(3)} kg</strong>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -21,6 +21,10 @@ app.get('/', (req, res) => {
     res.send('API is running');
 });
 
+// Product Routes
+app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/products', require('./routes/scoringRoutes'));
+
 // Server Port
 const PORT = process.env.PORT || 5000;
 
