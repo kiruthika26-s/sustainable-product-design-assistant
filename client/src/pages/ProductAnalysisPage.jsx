@@ -5,6 +5,8 @@ import {
   createProduct,
   getProducts,
   deleteProduct,
+  updateProduct,
+  getProductScore,
 } from "../services/api";
 
 function ProductAnalysisPage() {
@@ -27,10 +29,14 @@ function ProductAnalysisPage() {
     },
   ]);
 
+  // Edit Product state
+  const [editingProduct, setEditingProduct] = useState(null);
+
   // API interaction states for Calculation
   const [scoreResult, setScoreResult] = useState(null);
   const [lastCalculatedPayload, setLastCalculatedPayload] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingScoreId, setLoadingScoreId] = useState(null);
   const [error, setError] = useState(null);
   const [validationErrors, setValidationErrors] = useState([]);
 
@@ -93,7 +99,7 @@ function ProductAnalysisPage() {
   // Update a specific field of a material row
   const handleMaterialChange = (id, field, value) => {
     setMaterials((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
+      prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
     );
   };
 
@@ -126,7 +132,9 @@ function ProductAnalysisPage() {
         }
         const w = Number(mat.weight);
         if (mat.weight === "" || isNaN(w) || w <= 0) {
-          errors.push(`Material #${itemNum}: Weight must be greater than 0 kg.`);
+          errors.push(
+            `Material #${itemNum}: Weight must be greater than 0 kg.`,
+          );
         }
         const indexVal = Number(mat.recyclabilityIndex);
         if (
@@ -136,7 +144,7 @@ function ProductAnalysisPage() {
           indexVal > 100
         ) {
           errors.push(
-            `Material #${itemNum}: Recyclability Index must be between 0 and 100.`
+            `Material #${itemNum}: Recyclability Index must be between 0 and 100.`,
           );
         }
       });
@@ -145,25 +153,8 @@ function ProductAnalysisPage() {
     return errors;
   };
 
-  // Submit handler calling score calculation API
-  const handleCalculateScore = async (e) => {
-    e.preventDefault();
-    setScoreResult(null);
-    setLastCalculatedPayload(null);
-    setError(null);
-    setIsSaved(false);
-    setSaveSuccess(null);
-    setSaveError(null);
-
-    const errors = validateForm();
-    if (errors.length > 0) {
-      setValidationErrors(errors);
-      return;
-    }
-
-    setValidationErrors([]);
-    setLoading(true);
-
+  // Helper to compile structured product payload from form state
+  const buildPayload = () => {
     const payload = {
       name: productInfo.name.trim(),
       category: productInfo.category.trim(),
@@ -182,6 +173,30 @@ function ProductAnalysisPage() {
       };
     }
 
+    return payload;
+  };
+
+  // Submit handler calling score calculation API
+  const handleCalculateScore = async (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setScoreResult(null);
+    setLastCalculatedPayload(null);
+    setError(null);
+    setIsSaved(false);
+    setSaveSuccess(null);
+    setSaveError(null);
+
+    const errors = validateForm();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    setValidationErrors([]);
+    setLoading(true);
+
+    const payload = buildPayload();
+
     try {
       const response = await calculateScore(payload);
       if (response && response.success) {
@@ -192,7 +207,8 @@ function ProductAnalysisPage() {
       }
     } catch (err) {
       setError(
-        err.message || "Server error while calculating score. Please try again."
+        err.message ||
+          "Server error while calculating score. Please try again.",
       );
     } finally {
       setLoading(false);
@@ -201,19 +217,25 @@ function ProductAnalysisPage() {
 
   // Save handler calling Product creation API
   const handleSaveProduct = async () => {
-    if (!lastCalculatedPayload || isSaved) return;
+    const payload = lastCalculatedPayload || buildPayload();
+    const errors = validateForm();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    if (isSaved) return;
 
     setSaving(true);
     setSaveSuccess(null);
     setSaveError(null);
 
     try {
-      const response = await createProduct(lastCalculatedPayload);
+      const response = await createProduct(payload);
       if (response && response.success) {
         const savedId = response.data?._id || response.data?.id;
         setIsSaved(true);
         setSaveSuccess(
-          `Product saved successfully! ${savedId ? `(ID: ${savedId})` : ""}`
+          `Product saved successfully! ${savedId ? `(ID: ${savedId})` : ""}`,
         );
         // Refresh product history list automatically
         loadProducts();
@@ -222,10 +244,182 @@ function ProductAnalysisPage() {
       }
     } catch (err) {
       setSaveError(
-        err.message || "Server error while saving product. Please try again."
+        err.message || "Server error while saving product. Please try again.",
       );
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Update handler calling Product update API
+  const handleUpdateProduct = async () => {
+    if (!editingProduct) return;
+    const id = editingProduct._id || editingProduct.id;
+
+    const errors = validateForm();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+
+    setValidationErrors([]);
+    setSaving(true);
+    setSaveSuccess(null);
+    setSaveError(null);
+
+    const payload = buildPayload();
+
+    try {
+      const response = await updateProduct(id, payload);
+      if (response && response.success) {
+        setIsSaved(true);
+        setSaveSuccess(`Product "${payload.name}" updated successfully!`);
+        setEditingProduct(null);
+        setLastCalculatedPayload(payload);
+
+        // Recalculate score for updated product
+        try {
+          const scoreRes = await calculateScore(payload);
+          if (scoreRes && scoreRes.success) {
+            setScoreResult(scoreRes.data);
+          }
+        } catch {
+          // ignore score recalculation error
+        }
+
+        await loadProducts();
+      } else {
+        setSaveError(response.error || "Failed to update product.");
+      }
+    } catch (err) {
+      setSaveError(
+        err.message || "Server error while updating product. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Main form submit dispatcher: updates if in edit mode, otherwise calculates score
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    if (editingProduct) {
+      await handleUpdateProduct();
+    } else {
+      await handleCalculateScore(e);
+    }
+  };
+
+  // Switch to edit mode and populate form with product's existing data
+  const handleEditProduct = (product) => {
+    setEditingProduct(product);
+    setValidationErrors([]);
+    setError(null);
+    setSaveSuccess(null);
+    setSaveError(null);
+    setIsSaved(false);
+
+    setProductInfo({
+      name: product.name || "",
+      category: product.category || "Packaging & Containers",
+      packaging:
+        product.packaging?.type ||
+        product.packaging?.material ||
+        (typeof product.packaging === "string" ? product.packaging : ""),
+      description: product.description || "",
+    });
+
+    if (Array.isArray(product.materials) && product.materials.length > 0) {
+      setMaterials(
+        product.materials.map((m, idx) => ({
+          id: m._id || Date.now() + idx,
+          name: m.name || "",
+          type: m.material || m.type || "PET (Plastic)",
+          weight: m.weight !== undefined && m.weight !== null ? m.weight : "",
+          recyclabilityIndex:
+            m.recyclabilityIndex !== undefined && m.recyclabilityIndex !== null
+              ? m.recyclabilityIndex
+              : 85,
+        })),
+      );
+    } else {
+      setMaterials([
+        {
+          id: Date.now(),
+          name: "",
+          type: "PET (Plastic)",
+          weight: "",
+          recyclabilityIndex: 85,
+        },
+      ]);
+    }
+
+    // Auto-fetch current score for edited product
+    const id = product._id || product.id;
+    if (id) {
+      handleViewScore(product);
+    }
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Cancel edit mode and reset
+  const handleCancelEdit = () => {
+    setEditingProduct(null);
+    setValidationErrors([]);
+    setSaveError(null);
+  };
+
+  // Clear product inputs and reset materials to initial single-material row
+  const handleClearForm = () => {
+    setProductInfo({
+      name: "",
+      category: "Packaging & Containers",
+      packaging: "",
+      description: "",
+    });
+    setMaterials([
+      {
+        id: Date.now(),
+        name: "",
+        type: "PET (Plastic)",
+        weight: "",
+        recyclabilityIndex: 85,
+      },
+    ]);
+    setScoreResult(null);
+    setLastCalculatedPayload(null);
+    setError(null);
+    setValidationErrors([]);
+    setSaving(false);
+    setIsSaved(false);
+    setSaveSuccess(null);
+    setSaveError(null);
+    setEditingProduct(null);
+  };
+
+  // Load and display calculated recyclability score for a stored product
+  const handleViewScore = async (product) => {
+    const id = product._id || product.id;
+    if (!id) return;
+    setLoadingScoreId(id);
+    setError(null);
+    setLoading(true);
+
+    try {
+      const response = await getProductScore(id);
+      if (response && response.success) {
+        setScoreResult(response.data);
+        setIsSaved(true);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        setError(response.error || "Failed to fetch product score.");
+      }
+    } catch (err) {
+      setError(err.message || "Server error while fetching product score.");
+    } finally {
+      setLoading(false);
+      setLoadingScoreId(null);
     }
   };
 
@@ -236,6 +430,12 @@ function ProductAnalysisPage() {
       const response = await deleteProduct(id);
       if (response && response.success) {
         setProducts((prev) => prev.filter((p) => (p._id || p.id) !== id));
+        if (
+          editingProduct &&
+          (editingProduct._id === id || editingProduct.id === id)
+        ) {
+          handleClearForm();
+        }
       } else {
         alert(response.error || "Failed to delete product.");
       }
@@ -272,10 +472,51 @@ function ProductAnalysisPage() {
       {/* Main 2-column Analysis Layout */}
       <div className="analysis-layout">
         {/* Left Side: Product Input Form */}
-        <form className="analysis-form" onSubmit={handleCalculateScore}>
+        <form className="analysis-form" onSubmit={handleFormSubmit}>
+          {editingProduct && (
+            <div
+              style={{
+                backgroundColor: "#e8f5e9",
+                border: "1px solid #a5d6a7",
+                borderRadius: "8px",
+                padding: "12px 16px",
+                marginBottom: "16px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "8px",
+              }}
+            >
+              <div>
+                <strong style={{ color: "#1b5e20" }}>✏️ Edit Mode:</strong>{" "}
+                <span style={{ color: "#2e7d32", fontWeight: 600 }}>
+                  {editingProduct.name}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={handleCancelEdit}
+              >
+                Cancel Edit
+              </button>
+            </div>
+          )}
+
           {/* Section 1: General Product Specifications */}
           <section className="form-section card">
-            <h2 className="section-title">1. Product Specifications</h2>
+            <div className="section-header-row">
+              <h2 className="section-title">1. Product Specifications</h2>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={handleClearForm}
+                title="Clear all fields and start a new product"
+              >
+                + New Product / Clear
+              </button>
+            </div>
 
             <div className="form-grid">
               <div className="form-group">
@@ -319,7 +560,9 @@ function ProductAnalysisPage() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="productDescription">Description (Optional)</label>
+                <label htmlFor="productDescription">
+                  Description (Optional)
+                </label>
                 <textarea
                   id="productDescription"
                   name="description"
@@ -336,9 +579,12 @@ function ProductAnalysisPage() {
           <section className="form-section card">
             <div className="section-header-row">
               <div>
-                <h2 className="section-title">2. Materials & Components Breakdown</h2>
+                <h2 className="section-title">
+                  2. Materials & Components Breakdown
+                </h2>
                 <p className="section-description">
-                  List each component part, its primary material, weight (kg), and recyclability index (0–100).
+                  List each component part, its primary material, weight (kg),
+                  and recyclability index (0–100).
                 </p>
               </div>
               <button
@@ -380,14 +626,56 @@ function ProductAnalysisPage() {
           {error && <div className="error-banner">{error}</div>}
 
           {/* Submit Action Button */}
-          <div className="form-actions">
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={loading}
-            >
-              {loading ? "Calculating..." : "Calculate Recyclability Score"}
-            </button>
+          <div
+            className="form-actions"
+            style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}
+          >
+            {editingProduct ? (
+              <>
+                <button
+                  type="submit"
+                  className="btn-success"
+                  style={{ flex: 1, minWidth: "160px" }}
+                  disabled={saving}
+                >
+                  {saving ? "Updating..." : "Update Product"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ flex: 1, minWidth: "160px" }}
+                  disabled={loading}
+                  onClick={handleCalculateScore}
+                >
+                  {loading ? "Calculating..." : "Recalculate Score"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleCancelEdit}
+                >
+                  Cancel Edit
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ flex: 1, minWidth: "180px" }}
+                  disabled={loading}
+                >
+                  {loading ? "Calculating..." : "Calculate Recyclability Score"}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleClearForm}
+                >
+                  Clear Form
+                </button>
+              </>
+            )}
           </div>
         </form>
 
@@ -423,11 +711,15 @@ function ProductAnalysisPage() {
                   </div>
                   <div className="breakdown-item penalty">
                     <span>Mixed Material Penalty</span>
-                    <strong>-{scoreResult.penalties?.mixedMaterialPenalty} pts</strong>
+                    <strong>
+                      -{scoreResult.penalties?.mixedMaterialPenalty} pts
+                    </strong>
                   </div>
                   <div className="breakdown-item penalty">
                     <span>Contamination Penalty</span>
-                    <strong>-{scoreResult.penalties?.contaminationPenalty} pts</strong>
+                    <strong>
+                      -{scoreResult.penalties?.contaminationPenalty} pts
+                    </strong>
                   </div>
                   <div className="breakdown-item total-penalty">
                     <span>Total Penalty Deductions</span>
@@ -466,6 +758,61 @@ function ProductAnalysisPage() {
                   </div>
                 )}
 
+              {/* Sustainable Design Recommendations */}
+              {scoreResult.recommendations &&
+                scoreResult.recommendations.length > 0 && (
+                  <div className="breakdown-section">
+                    <h3>🌱 Sustainable Design Recommendations</h3>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "12px",
+                      }}
+                    >
+                      {scoreResult.recommendations.map((rec, idx) => (
+                        <div
+                          key={idx}
+                          style={{
+                            padding: "12px",
+                            border: "1px solid #c8e6c9",
+                            borderRadius: "8px",
+                            backgroundColor: "#f1f8e9",
+                          }}
+                        >
+                          <strong>
+                            Current Material: {rec.currentMaterial}
+                          </strong>
+
+                          {rec.suggestedMaterial && (
+                            <p style={{ margin: "6px 0" }}>
+                              <strong>Suggested Alternative:</strong>{" "}
+                              {rec.suggestedMaterial}
+                            </p>
+                          )}
+
+                          <p style={{ margin: "6px 0 0" }}>
+                            <strong>Reason:</strong> {rec.reason}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {scoreResult.recommendations &&
+                scoreResult.recommendations.length === 0 && (
+                  <div className="breakdown-section">
+                    <h3>🌱 Sustainable Design Recommendations</h3>
+                    <p>
+                      Your current material selection has no major
+                      recommendation issues. Keep using recyclable and
+                      compatible materials.
+                    </p>
+                  </div>
+                )}
+
               {/* Save Product Action Section */}
               <div className="save-action-section">
                 {saveSuccess && (
@@ -473,18 +820,43 @@ function ProductAnalysisPage() {
                 )}
                 {saveError && <div className="error-banner">{saveError}</div>}
 
-                <button
-                  type="button"
-                  className="btn-success btn-save"
-                  disabled={saving || isSaved}
-                  onClick={handleSaveProduct}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                  }}
                 >
-                  {saving
-                    ? "Saving..."
-                    : isSaved
-                    ? "Product Saved ✓"
-                    : "Save Product"}
-                </button>
+                  <button
+                    type="button"
+                    className="btn-success btn-save"
+                    style={{ flex: 1 }}
+                    disabled={saving || (isSaved && !editingProduct)}
+                    onClick={
+                      editingProduct ? handleUpdateProduct : handleSaveProduct
+                    }
+                  >
+                    {saving
+                      ? editingProduct
+                        ? "Updating..."
+                        : "Saving..."
+                      : editingProduct
+                        ? "Update Product"
+                        : isSaved
+                          ? "Product Saved ✓"
+                          : "Save Product"}
+                  </button>
+                  {editingProduct && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={handleCancelEdit}
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
@@ -492,9 +864,9 @@ function ProductAnalysisPage() {
               <div className="placeholder-icon">🌱</div>
               <h3>No Score Calculated Yet</h3>
               <p>
-                Fill out the product specifications and materials breakdown, then
-                click <strong>"Calculate Recyclability Score"</strong> to view your
-                sustainability report.
+                Fill out the product specifications and materials breakdown,
+                then click <strong>"Calculate Recyclability Score"</strong> to
+                view your sustainability report.
               </p>
             </div>
           )}
@@ -505,7 +877,9 @@ function ProductAnalysisPage() {
       <section className="saved-products-section">
         <div className="section-header-row">
           <div>
-            <h2 className="section-title">Saved Products ({products.length})</h2>
+            <h2 className="section-title">
+              Saved Products ({products.length})
+            </h2>
             <p className="section-description">
               View and manage products saved to your MongoDB database.
             </p>
@@ -520,9 +894,7 @@ function ProductAnalysisPage() {
           </button>
         </div>
 
-        {productsError && (
-          <div className="error-banner">{productsError}</div>
-        )}
+        {productsError && <div className="error-banner">{productsError}</div>}
 
         {productsLoading ? (
           <div className="loading-container">
@@ -540,7 +912,7 @@ function ProductAnalysisPage() {
               const totalWeight = product.materials
                 ? product.materials.reduce(
                     (sum, m) => sum + (Number(m.weight) || 0),
-                    0
+                    0,
                   )
                 : 0;
 
@@ -551,14 +923,40 @@ function ProductAnalysisPage() {
                       <h3 className="product-name">{product.name}</h3>
                       <span className="category-tag">{product.category}</span>
                     </div>
-                    <button
-                      type="button"
-                      className="btn-danger-text"
-                      disabled={deletingProductId === id}
-                      onClick={() => handleDeleteProduct(id)}
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "6px",
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                      }}
                     >
-                      {deletingProductId === id ? "Deleting..." : "Delete"}
-                    </button>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        disabled={loadingScoreId === id}
+                        onClick={() => handleViewScore(product)}
+                        title="View calculated recyclability score"
+                      >
+                        {loadingScoreId === id ? "Loading..." : "View Score"}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-sm"
+                        onClick={() => handleEditProduct(product)}
+                        title="Edit product details"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-danger-text"
+                        disabled={deletingProductId === id}
+                        onClick={() => handleDeleteProduct(id)}
+                      >
+                        {deletingProductId === id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   </div>
 
                   {product.description && (
@@ -566,7 +964,9 @@ function ProductAnalysisPage() {
                   )}
 
                   <div className="materials-summary">
-                    <strong>Materials ({product.materials?.length || 0}):</strong>
+                    <strong>
+                      Materials ({product.materials?.length || 0}):
+                    </strong>
                     <ul className="material-tags-list">
                       {product.materials?.map((mat, i) => (
                         <li key={i}>

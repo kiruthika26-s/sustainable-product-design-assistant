@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { getProducts, calculateScore } from "../services/api";
 
 /**
  * Standard material database with recyclability index ratings (0-100),
@@ -8,81 +9,106 @@ const MATERIAL_CATALOG = {
   "PET (Plastic)": {
     index: 85,
     category: "Plastics",
-    description: "Widely collected in municipal curbside recycling; high circular demand.",
-    ecoTip: "Great circular alternative for transparent rigid containers and bottles."
+    description:
+      "Widely collected in municipal curbside recycling; high circular demand.",
+    ecoTip:
+      "Great circular alternative for transparent rigid containers and bottles.",
   },
   "HDPE (Plastic)": {
     index: 80,
     category: "Plastics",
-    description: "Easily sorted and reprocessed with established post-consumer markets.",
-    ecoTip: "Recommended for opaque bottles, caps, and sturdy packaging components."
+    description:
+      "Easily sorted and reprocessed with established post-consumer markets.",
+    ecoTip:
+      "Recommended for opaque bottles, caps, and sturdy packaging components.",
   },
   "PP (Polypropylene)": {
     index: 70,
     category: "Plastics",
-    description: "Rapidly expanding recycling programs; high thermal and chemical resistance.",
-    ecoTip: "Excellent replacement for single-use polystyrene and flexible multi-layer plastics."
+    description:
+      "Rapidly expanding recycling programs; high thermal and chemical resistance.",
+    ecoTip:
+      "Excellent replacement for single-use polystyrene and flexible multi-layer plastics.",
   },
   "LDPE (Plastic)": {
     index: 50,
     category: "Plastics",
-    description: "Flexible film; curbside recovery is limited, often requires store drop-off.",
-    ecoTip: "Consider corrugated cardboard or molded pulp cushioning instead."
+    description:
+      "Flexible film; curbside recovery is limited, often requires store drop-off.",
+    ecoTip: "Consider corrugated cardboard or molded pulp cushioning instead.",
   },
   "PVC (Plastic)": {
     index: 15,
     category: "Plastics",
-    description: "Severe recycling barrier; chlorine content contaminates standard recycling streams.",
-    ecoTip: "Priority phase-out: switch to PET, HDPE, or aluminum wherever possible."
+    description:
+      "Severe recycling barrier; chlorine content contaminates standard recycling streams.",
+    ecoTip:
+      "Priority phase-out: switch to PET, HDPE, or aluminum wherever possible.",
   },
-  "Aluminum": {
+  Aluminum: {
     index: 95,
     category: "Metals",
-    description: "Infinitely recyclable with 95% energy savings compared to virgin smelting.",
-    ecoTip: "Gold standard for circular lifecycle design and lightweight structural parts."
+    description:
+      "Infinitely recyclable with 95% energy savings compared to virgin smelting.",
+    ecoTip:
+      "Gold standard for circular lifecycle design and lightweight structural parts.",
   },
-  "Steel": {
+  Steel: {
     index: 90,
     category: "Metals",
-    description: "Magnetic separation makes recovery highly efficient; globally established recycling.",
-    ecoTip: "Durable, high-strength choice for long-life products and protective housings."
+    description:
+      "Magnetic separation makes recovery highly efficient; globally established recycling.",
+    ecoTip:
+      "Durable, high-strength choice for long-life products and protective housings.",
   },
-  "Glass": {
+  Glass: {
     index: 85,
     category: "Glass & Minerals",
-    description: "100% infinitely recyclable without chemical degradation or downcycling.",
-    ecoTip: "Ideal for premium, non-reactive containers; evaluate transit weight vs. recyclability."
+    description:
+      "100% infinitely recyclable without chemical degradation or downcycling.",
+    ecoTip:
+      "Ideal for premium, non-reactive containers; evaluate transit weight vs. recyclability.",
   },
   "Cardboard / Paper": {
     index: 80,
     category: "Fiber & Pulp",
-    description: "Renewable, widely collected, biodegradable, and recyclable up to 5-7 cycles.",
-    ecoTip: "Best eco-friendly alternative for transport packaging and outer cartons."
+    description:
+      "Renewable, widely collected, biodegradable, and recyclable up to 5-7 cycles.",
+    ecoTip:
+      "Best eco-friendly alternative for transport packaging and outer cartons.",
   },
   "Bioplastic (PLA)": {
     index: 40,
     category: "Bio-Polymers",
-    description: "Requires industrial composting (58°C+); often discarded as plastic contaminant.",
-    ecoTip: "Only choose if municipal industrial composting collection is accessible to end users."
+    description:
+      "Requires industrial composting (58°C+); often discarded as plastic contaminant.",
+    ecoTip:
+      "Only choose if municipal industrial composting collection is accessible to end users.",
   },
   "Wood / Bamboo": {
     index: 60,
     category: "Renewable Organics",
-    description: "Natural carbon sink, compostable, and renewable when sustainably sourced (FSC).",
-    ecoTip: "Great alternative for structural inserts and aesthetic product shells."
+    description:
+      "Natural carbon sink, compostable, and renewable when sustainably sourced (FSC).",
+    ecoTip:
+      "Great alternative for structural inserts and aesthetic product shells.",
   },
-  "Rubber": {
+  Rubber: {
     index: 30,
     category: "Elastomers",
-    description: "Cross-linked vulcanization prevents melting; typically downcycled or incinerated.",
-    ecoTip: "Investigate recyclable Thermoplastic Elastomers (TPE) or natural latex substitutes."
+    description:
+      "Cross-linked vulcanization prevents melting; typically downcycled or incinerated.",
+    ecoTip:
+      "Investigate recyclable Thermoplastic Elastomers (TPE) or natural latex substitutes.",
   },
-  "Other": {
+  Other: {
     index: 20,
     category: "Mixed Materials",
-    description: "Unidentified blends or multi-layer composites with near-zero recovery options.",
-    ecoTip: "Standardize on single-material (monomaterial) design to facilitate end-of-life sorting."
-  }
+    description:
+      "Unidentified blends or multi-layer composites with near-zero recovery options.",
+    ecoTip:
+      "Standardize on single-material (monomaterial) design to facilitate end-of-life sorting.",
+  },
 };
 
 const MATERIAL_OPTIONS = Object.keys(MATERIAL_CATALOG);
@@ -93,26 +119,26 @@ const PRESET_SCENARIOS = [
     title: "Phase out PVC",
     current: "PVC (Plastic)",
     alternative: "PET (Plastic)",
-    label: "PVC ➔ PET"
+    label: "PVC ➔ PET",
   },
   {
     title: "Metal Upgrade",
     current: "PP (Polypropylene)",
     alternative: "Aluminum",
-    label: "PP ➔ Aluminum"
+    label: "PP ➔ Aluminum",
   },
   {
     title: "Paper Packaging",
     current: "LDPE (Plastic)",
     alternative: "Cardboard / Paper",
-    label: "LDPE ➔ Cardboard"
+    label: "LDPE ➔ Cardboard",
   },
   {
     title: "Cautionary Swap",
     current: "HDPE (Plastic)",
     alternative: "Bioplastic (PLA)",
-    label: "HDPE ➔ Bioplastic"
-  }
+    label: "HDPE ➔ Bioplastic",
+  },
 ];
 
 /**
@@ -130,10 +156,10 @@ function getRatingMeta(score) {
 
 /**
  * SimulationPage Component
- * 
+ *
  * Beginner-friendly What-If Material Simulation interface allowing designers
  * to test alternative materials and analyze immediate recyclability index impact.
- * 
+ *
  * @param {Object} props - Optional props for parent integration
  * @param {string} [props.initialCurrentMaterial] - Initial current material name
  * @param {string} [props.initialAlternativeMaterial] - Initial alternative material name
@@ -142,26 +168,55 @@ function getRatingMeta(score) {
 function SimulationPage({
   initialCurrentMaterial = "PVC (Plastic)",
   initialAlternativeMaterial = "Aluminum",
-  onApplySimulation
+  onApplySimulation,
 }) {
   // Material selections
-  const [currentMaterial, setCurrentMaterial] = useState(initialCurrentMaterial);
-  const [alternativeMaterial, setAlternativeMaterial] = useState(initialAlternativeMaterial);
+  const [currentMaterial, setCurrentMaterial] = useState(
+    initialCurrentMaterial,
+  );
+  const [alternativeMaterial, setAlternativeMaterial] = useState(
+    initialAlternativeMaterial,
+  );
 
   // Recyclability Indices (pre-populated from catalog, user editable)
   const [currentIndex, setCurrentIndex] = useState(
-    MATERIAL_CATALOG[initialCurrentMaterial]?.index ?? 15
+    MATERIAL_CATALOG[initialCurrentMaterial]?.index ?? 15,
   );
   const [alternativeIndex, setAlternativeIndex] = useState(
-    MATERIAL_CATALOG[initialAlternativeMaterial]?.index ?? 95
+    MATERIAL_CATALOG[initialAlternativeMaterial]?.index ?? 95,
   );
 
   // Component notes or part name (e.g. "Main Body", "Container Lid")
-  const [componentPartName, setComponentPartName] = useState("Main Housing / Body");
+  const [componentPartName, setComponentPartName] = useState(
+    "Main Housing / Body",
+  );
 
   // Simulation result state
   const [simulationResult, setSimulationResult] = useState(null);
+  // Saved products loaded from MongoDB
+  const [products, setProducts] = useState([]);
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productsError, setProductsError] = useState("");
+  // Load saved products from MongoDB when the page opens
+  useEffect(() => {
+    const loadSavedProducts = async () => {
+      setProductsLoading(true);
+      setProductsError("");
 
+      try {
+        const data = await getProducts();
+        console.log("Saved products from API:", data);
+        setProducts(Array.isArray(data) ? data : data.data || []);
+      } catch (error) {
+        setProductsError(error.message || "Failed to load saved products.");
+      } finally {
+        setProductsLoading(false);
+      }
+    };
+
+    loadSavedProducts();
+  }, []);
   // Handle current material dropdown change
   const handleCurrentMaterialChange = (e) => {
     const selected = e.target.value;
@@ -209,8 +264,8 @@ function SimulationPage({
       numCurrent > 0
         ? ((scoreDiff / numCurrent) * 100).toFixed(1)
         : numAlternative > 0
-        ? "+100"
-        : "0";
+          ? "+100"
+          : "0";
 
     setSimulationResult({
       partName: componentPartName.trim() || "Product Component",
@@ -223,14 +278,22 @@ function SimulationPage({
       scoreDifference: scoreDiff,
       percentChange,
       impactStatus,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
     });
   };
 
   // "Simulate" Button Click Handler
   const handleSimulate = (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    computeSimulation(currentMaterial, currentIndex, alternativeMaterial, alternativeIndex);
+    computeSimulation(
+      currentMaterial,
+      currentIndex,
+      alternativeMaterial,
+      alternativeIndex,
+    );
   };
 
   // Reset simulation form to default clean state
@@ -255,7 +318,12 @@ function SimulationPage({
     setAlternativeIndex(prevCurrentIdx);
 
     if (simulationResult) {
-      computeSimulation(alternativeMaterial, alternativeIndex, prevCurrentMat, prevCurrentIdx);
+      computeSimulation(
+        alternativeMaterial,
+        alternativeIndex,
+        prevCurrentMat,
+        prevCurrentIdx,
+      );
     }
   };
 
@@ -268,7 +336,9 @@ function SimulationPage({
       <div className="page-header">
         <h1>What-If Material Simulation</h1>
         <p className="page-subtitle">
-          Test alternative materials to forecast recyclability score impact, discover circular substitutes, and optimize sustainability before production.
+          Test alternative materials to forecast recyclability score impact,
+          discover circular substitutes, and optimize sustainability before
+          production.
         </p>
       </div>
 
@@ -282,7 +352,7 @@ function SimulationPage({
           display: "flex",
           alignItems: "flex-start",
           gap: "14px",
-          padding: "16px 20px"
+          padding: "16px 20px",
         }}
       >
         <span style={{ fontSize: "1.6rem", lineHeight: 1 }}>💡</span>
@@ -295,19 +365,66 @@ function SimulationPage({
               margin: "4px 0 0 0",
               fontSize: "0.88rem",
               color: "#2e5630",
-              lineHeight: 1.45
+              lineHeight: 1.45,
             }}
           >
-            Each material has a baseline <strong>Recyclability Index (0 – 100)</strong> representing municipal sorting efficiency and market reuse demand.
-            Select your current component material and test a proposed substitute to calculate the immediate index difference.
+            Each material has a baseline{" "}
+            <strong>Recyclability Index (0 – 100)</strong> representing
+            municipal sorting efficiency and market reuse demand. Select your
+            current component material and test a proposed substitute to
+            calculate the immediate index difference.
           </p>
         </div>
       </div>
+      {/* 3. Saved Product Selection */}
+      <div
+        className="card"
+        style={{
+          marginBottom: "20px",
+          padding: "16px 20px",
+        }}
+      >
+        <h2 className="section-title">Select Saved Product</h2>
 
+        <div className="form-group">
+          <label htmlFor="saved-product-select">Product to Simulate</label>
+
+          <select
+            id="saved-product-select"
+            value={selectedProductId}
+            onChange={(e) => setSelectedProductId(e.target.value)}
+            disabled={productsLoading}
+          >
+            <option value="">
+              {productsLoading
+                ? "Loading saved products..."
+                : "Select a saved product"}
+            </option>
+            {products.map((product) => (
+              <option key={product._id} value={product._id}>
+                {product.name} ({product.category})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {productsError && (
+          <p style={{ color: "#b91c1c", marginTop: "8px" }}>{productsError}</p>
+        )}
+      </div>
       {/* 3. Quick Scenario Presets */}
       <div style={{ marginBottom: "20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            flexWrap: "wrap",
+          }}
+        >
+          <span
+            style={{ fontSize: "0.85rem", fontWeight: 600, color: "#475569" }}
+          >
             ⚡ Quick Simulation Presets:
           </span>
           {PRESET_SCENARIOS.map((preset) => (
@@ -317,7 +434,11 @@ function SimulationPage({
               className="btn-secondary btn-sm"
               onClick={() => handleApplyPreset(preset)}
               title={`Simulate swap: ${preset.title}`}
-              style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+              }}
             >
               <span>{preset.label}</span>
             </button>
@@ -333,7 +454,8 @@ function SimulationPage({
             <div>
               <h2 className="section-title">1. Simulation Parameters</h2>
               <p className="section-description">
-                Configure your current component and select an eco-friendly candidate to evaluate.
+                Configure your current component and select an eco-friendly
+                candidate to evaluate.
               </p>
             </div>
             <button
@@ -349,7 +471,9 @@ function SimulationPage({
           <form onSubmit={handleSimulate}>
             {/* Optional Component Name */}
             <div className="form-group" style={{ marginBottom: "18px" }}>
-              <label htmlFor="sim-part-name">Component / Part Description</label>
+              <label htmlFor="sim-part-name">
+                Component / Part Description
+              </label>
               <input
                 id="sim-part-name"
                 type="text"
@@ -365,7 +489,7 @@ function SimulationPage({
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
                 gap: "16px",
-                marginBottom: "20px"
+                marginBottom: "20px",
               }}
             >
               {/* CURRENT MATERIAL CARD */}
@@ -374,7 +498,7 @@ function SimulationPage({
                   padding: "16px",
                   background: "#fff9f9",
                   border: "1px solid #fecaca",
-                  borderRadius: "8px"
+                  borderRadius: "8px",
                 }}
               >
                 <div
@@ -382,7 +506,7 @@ function SimulationPage({
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    marginBottom: "12px"
+                    marginBottom: "12px",
                   }}
                 >
                   <span
@@ -391,7 +515,7 @@ function SimulationPage({
                       fontWeight: 700,
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
-                      color: "#b91c1c"
+                      color: "#b91c1c",
                     }}
                   >
                     ● Current Material
@@ -403,7 +527,7 @@ function SimulationPage({
                       color: "#991b1b",
                       padding: "2px 8px",
                       borderRadius: "10px",
-                      fontWeight: 600
+                      fontWeight: 600,
                     }}
                   >
                     {currentInfo.category || "General"}
@@ -446,7 +570,7 @@ function SimulationPage({
                     fontSize: "0.8rem",
                     color: "#64748b",
                     margin: "6px 0 0 0",
-                    lineHeight: 1.4
+                    lineHeight: 1.4,
                   }}
                 >
                   {currentInfo.description}
@@ -459,7 +583,7 @@ function SimulationPage({
                   padding: "16px",
                   background: "#f2fcf5",
                   border: "1px solid #bbf7d0",
-                  borderRadius: "8px"
+                  borderRadius: "8px",
                 }}
               >
                 <div
@@ -467,7 +591,7 @@ function SimulationPage({
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    marginBottom: "12px"
+                    marginBottom: "12px",
                   }}
                 >
                   <span
@@ -476,7 +600,7 @@ function SimulationPage({
                       fontWeight: 700,
                       textTransform: "uppercase",
                       letterSpacing: "0.5px",
-                      color: "#15803d"
+                      color: "#15803d",
                     }}
                   >
                     ● Alternative Material
@@ -488,7 +612,7 @@ function SimulationPage({
                       color: "#166534",
                       padding: "2px 8px",
                       borderRadius: "10px",
-                      fontWeight: 600
+                      fontWeight: 600,
                     }}
                   >
                     {alternativeInfo.category || "General"}
@@ -496,7 +620,9 @@ function SimulationPage({
                 </div>
 
                 <div className="form-group" style={{ marginBottom: "12px" }}>
-                  <label htmlFor="alternative-material-select">Proposed Alternative</label>
+                  <label htmlFor="alternative-material-select">
+                    Proposed Alternative
+                  </label>
                   <select
                     id="alternative-material-select"
                     value={alternativeMaterial}
@@ -531,7 +657,7 @@ function SimulationPage({
                     fontSize: "0.8rem",
                     color: "#64748b",
                     margin: "6px 0 0 0",
-                    lineHeight: 1.4
+                    lineHeight: 1.4,
                   }}
                 >
                   {alternativeInfo.ecoTip || alternativeInfo.description}
@@ -544,7 +670,13 @@ function SimulationPage({
               <button
                 type="submit"
                 className="btn-primary"
-                style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "8px",
+                }}
               >
                 <span>⚡ Simulate Impact</span>
               </button>
@@ -570,7 +702,9 @@ function SimulationPage({
               <div className="placeholder-icon">🌱</div>
               <h3>Ready to Simulate</h3>
               <p>
-                Select a current material and a potential alternative on the left, then click <strong>"Simulate Impact"</strong> to compute the recyclability difference.
+                Select a current material and a potential alternative on the
+                left, then click <strong>"Simulate Impact"</strong> to compute
+                the recyclability difference.
               </p>
             </div>
           ) : (
@@ -585,15 +719,23 @@ function SimulationPage({
                     alignItems: "center",
                     gap: "10px",
                     padding: "14px 16px",
-                    fontSize: "0.92rem"
+                    fontSize: "0.92rem",
                   }}
                 >
                   <span style={{ fontSize: "1.4rem" }}>✅</span>
                   <div>
                     <strong>Recyclability Improvement!</strong>
                     <div style={{ fontWeight: 400, marginTop: "2px" }}>
-                      Switching to {simulationResult.alternativeMaterial} increases component recyclability by{" "}
-                      <strong>+{simulationResult.scoreDifference} points</strong> ({simulationResult.percentChange > 0 ? `+${simulationResult.percentChange}%` : `${simulationResult.percentChange}%`}).
+                      Switching to {simulationResult.alternativeMaterial}{" "}
+                      increases component recyclability by{" "}
+                      <strong>
+                        +{simulationResult.scoreDifference} points
+                      </strong>{" "}
+                      (
+                      {simulationResult.percentChange > 0
+                        ? `+${simulationResult.percentChange}%`
+                        : `${simulationResult.percentChange}%`}
+                      ).
                     </div>
                   </div>
                 </div>
@@ -607,15 +749,18 @@ function SimulationPage({
                     alignItems: "center",
                     gap: "10px",
                     padding: "14px 16px",
-                    fontSize: "0.92rem"
+                    fontSize: "0.92rem",
                   }}
                 >
                   <span style={{ fontSize: "1.4rem" }}>⚠️</span>
                   <div>
                     <strong>Recyclability Decrease Detected</strong>
                     <div style={{ fontWeight: 400, marginTop: "2px" }}>
-                      Switching to {simulationResult.alternativeMaterial} reduces component recyclability by{" "}
-                      <strong>{simulationResult.scoreDifference} points</strong> ({simulationResult.percentChange}%). Consider higher-rated circular materials.
+                      Switching to {simulationResult.alternativeMaterial}{" "}
+                      reduces component recyclability by{" "}
+                      <strong>{simulationResult.scoreDifference} points</strong>{" "}
+                      ({simulationResult.percentChange}%). Consider higher-rated
+                      circular materials.
                     </div>
                   </div>
                 </div>
@@ -632,14 +777,15 @@ function SimulationPage({
                     fontSize: "0.92rem",
                     display: "flex",
                     alignItems: "center",
-                    gap: "10px"
+                    gap: "10px",
                   }}
                 >
                   <span style={{ fontSize: "1.4rem" }}>⚖️</span>
                   <div>
                     <strong>Neutral Impact (No Index Change)</strong>
                     <div style={{ fontWeight: 400, marginTop: "2px" }}>
-                      Both materials share identical recyclability index ratings ({simulationResult.currentIndex}/100).
+                      Both materials share identical recyclability index ratings
+                      ({simulationResult.currentIndex}/100).
                     </div>
                   </div>
                 </div>
@@ -651,7 +797,7 @@ function SimulationPage({
                   background: "#f8faf9",
                   border: "1px solid #d8e6d2",
                   borderRadius: "10px",
-                  padding: "16px"
+                  padding: "16px",
                 }}
               >
                 <div
@@ -661,7 +807,7 @@ function SimulationPage({
                     color: "#64748b",
                     marginBottom: "12px",
                     textTransform: "uppercase",
-                    letterSpacing: "0.5px"
+                    letterSpacing: "0.5px",
                   }}
                 >
                   Component: {simulationResult.partName}
@@ -673,7 +819,7 @@ function SimulationPage({
                     gridTemplateColumns: "1fr auto 1fr",
                     alignItems: "center",
                     gap: "12px",
-                    textAlign: "center"
+                    textAlign: "center",
                   }}
                 >
                   {/* Current Material Box */}
@@ -682,7 +828,7 @@ function SimulationPage({
                       background: "#ffffff",
                       border: "1px solid #e2e8f0",
                       borderRadius: "8px",
-                      padding: "12px 8px"
+                      padding: "12px 8px",
                     }}
                   >
                     <div
@@ -690,7 +836,7 @@ function SimulationPage({
                         fontSize: "0.75rem",
                         color: "#64748b",
                         fontWeight: 600,
-                        marginBottom: "4px"
+                        marginBottom: "4px",
                       }}
                     >
                       CURRENT
@@ -700,7 +846,7 @@ function SimulationPage({
                         fontSize: "0.95rem",
                         fontWeight: 700,
                         color: "#1e293b",
-                        marginBottom: "6px"
+                        marginBottom: "6px",
                       }}
                     >
                       {simulationResult.currentMaterial}
@@ -709,7 +855,7 @@ function SimulationPage({
                       style={{
                         fontSize: "1.6rem",
                         fontWeight: 800,
-                        color: "#334155"
+                        color: "#334155",
                       }}
                     >
                       {simulationResult.currentIndex}
@@ -718,7 +864,7 @@ function SimulationPage({
                       style={{
                         fontSize: "0.75rem",
                         color: "#64748b",
-                        fontWeight: 600
+                        fontWeight: 600,
                       }}
                     >
                       Grade {simulationResult.currentMeta.grade}
@@ -726,8 +872,17 @@ function SimulationPage({
                   </div>
 
                   {/* Transformation Arrow & Delta Badge */}
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
-                    <span style={{ fontSize: "1.4rem", color: "#64748b" }}>➔</span>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span style={{ fontSize: "1.4rem", color: "#64748b" }}>
+                      ➔
+                    </span>
                     <span
                       style={{
                         fontSize: "0.85rem",
@@ -739,19 +894,20 @@ function SimulationPage({
                           simulationResult.scoreDifference > 0
                             ? "#dcfce7"
                             : simulationResult.scoreDifference < 0
-                            ? "#fee2e2"
-                            : "#f1f5f9",
+                              ? "#fee2e2"
+                              : "#f1f5f9",
                         color:
                           simulationResult.scoreDifference > 0
                             ? "#15803d"
                             : simulationResult.scoreDifference < 0
-                            ? "#b91c1c"
-                            : "#475569"
+                              ? "#b91c1c"
+                              : "#475569",
                       }}
                     >
                       {simulationResult.scoreDifference > 0
                         ? `+${simulationResult.scoreDifference}`
-                        : simulationResult.scoreDifference} pts
+                        : simulationResult.scoreDifference}{" "}
+                      pts
                     </span>
                   </div>
 
@@ -761,7 +917,7 @@ function SimulationPage({
                       background: "#ffffff",
                       border: "1px solid #e2e8f0",
                       borderRadius: "8px",
-                      padding: "12px 8px"
+                      padding: "12px 8px",
                     }}
                   >
                     <div
@@ -769,7 +925,7 @@ function SimulationPage({
                         fontSize: "0.75rem",
                         color: "#15803d",
                         fontWeight: 600,
-                        marginBottom: "4px"
+                        marginBottom: "4px",
                       }}
                     >
                       ALTERNATIVE
@@ -779,7 +935,7 @@ function SimulationPage({
                         fontSize: "0.95rem",
                         fontWeight: 700,
                         color: "#1e293b",
-                        marginBottom: "6px"
+                        marginBottom: "6px",
                       }}
                     >
                       {simulationResult.alternativeMaterial}
@@ -788,7 +944,7 @@ function SimulationPage({
                       style={{
                         fontSize: "1.6rem",
                         fontWeight: 800,
-                        color: "#15803d"
+                        color: "#15803d",
                       }}
                     >
                       {simulationResult.alternativeIndex}
@@ -797,7 +953,7 @@ function SimulationPage({
                       style={{
                         fontSize: "0.75rem",
                         color: "#15803d",
-                        fontWeight: 600
+                        fontWeight: 600,
                       }}
                     >
                       Grade {simulationResult.alternativeMeta.grade}
@@ -809,7 +965,7 @@ function SimulationPage({
               {/* Visual Comparative Index Bar */}
               <div className="breakdown-section">
                 <h3>Visual Index Comparison (0 - 100)</h3>
-                
+
                 {/* Current Material Bar */}
                 <div style={{ marginBottom: "12px" }}>
                   <div
@@ -818,7 +974,7 @@ function SimulationPage({
                       justifyContent: "space-between",
                       fontSize: "0.85rem",
                       fontWeight: 600,
-                      marginBottom: "4px"
+                      marginBottom: "4px",
                     }}
                   >
                     <span>{simulationResult.currentMaterial} (Current)</span>
@@ -829,7 +985,7 @@ function SimulationPage({
                       height: "10px",
                       backgroundColor: "#e2e8f0",
                       borderRadius: "5px",
-                      overflow: "hidden"
+                      overflow: "hidden",
                     }}
                   >
                     <div
@@ -840,10 +996,10 @@ function SimulationPage({
                           simulationResult.currentIndex >= 80
                             ? "#2e7d32"
                             : simulationResult.currentIndex >= 50
-                            ? "#f59e0b"
-                            : "#ef4444",
+                              ? "#f59e0b"
+                              : "#ef4444",
                         borderRadius: "5px",
-                        transition: "width 0.3s ease"
+                        transition: "width 0.3s ease",
                       }}
                     />
                   </div>
@@ -857,10 +1013,12 @@ function SimulationPage({
                       justifyContent: "space-between",
                       fontSize: "0.85rem",
                       fontWeight: 600,
-                      marginBottom: "4px"
+                      marginBottom: "4px",
                     }}
                   >
-                    <span>{simulationResult.alternativeMaterial} (Alternative)</span>
+                    <span>
+                      {simulationResult.alternativeMaterial} (Alternative)
+                    </span>
                     <span>{simulationResult.alternativeIndex} / 100</span>
                   </div>
                   <div
@@ -868,7 +1026,7 @@ function SimulationPage({
                       height: "10px",
                       backgroundColor: "#e2e8f0",
                       borderRadius: "5px",
-                      overflow: "hidden"
+                      overflow: "hidden",
                     }}
                   >
                     <div
@@ -879,10 +1037,10 @@ function SimulationPage({
                           simulationResult.alternativeIndex >= 80
                             ? "#2e7d32"
                             : simulationResult.alternativeIndex >= 50
-                            ? "#f59e0b"
-                            : "#ef4444",
+                              ? "#f59e0b"
+                              : "#ef4444",
                         borderRadius: "5px",
-                        transition: "width 0.3s ease"
+                        transition: "width 0.3s ease",
                       }}
                     />
                   </div>
@@ -896,12 +1054,21 @@ function SimulationPage({
                   border: "1px solid #d8e6d2",
                   borderRadius: "8px",
                   padding: "12px 14px",
-                  fontSize: "0.85rem"
+                  fontSize: "0.85rem",
                 }}
               >
-                <strong style={{ color: "#1b4d3e" }}>Circular Design Takeaway:</strong>
-                <p style={{ margin: "4px 0 0 0", color: "#334155", lineHeight: 1.4 }}>
-                  {MATERIAL_CATALOG[simulationResult.alternativeMaterial]?.ecoTip ||
+                <strong style={{ color: "#1b4d3e" }}>
+                  Circular Design Takeaway:
+                </strong>
+                <p
+                  style={{
+                    margin: "4px 0 0 0",
+                    color: "#334155",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {MATERIAL_CATALOG[simulationResult.alternativeMaterial]
+                    ?.ecoTip ||
                     "Evaluating material life cycles helps minimize landfill impact and boosts circular recyclability."}
                 </p>
               </div>
@@ -916,7 +1083,7 @@ function SimulationPage({
                       onApplySimulation({
                         componentName: simulationResult.partName,
                         material: simulationResult.alternativeMaterial,
-                        recyclabilityIndex: simulationResult.alternativeIndex
+                        recyclabilityIndex: simulationResult.alternativeIndex,
                       })
                     }
                   >

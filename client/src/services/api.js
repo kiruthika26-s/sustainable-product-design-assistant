@@ -102,3 +102,60 @@ export async function deleteProduct(id) {
 
   return await parseJsonResponse(response);
 }
+
+/**
+ * Updates an existing product in MongoDB database by ID.
+ * Route: PUT /api/products/:id
+ *
+ * @param {string} id - MongoDB ObjectId string
+ * @param {Object} productData - Updated product details and specifications
+ * @returns {Promise<Object>} Updated product object
+ */
+export async function updateProduct(id, productData) {
+  const response = await fetch(`${API_BASE_URL}/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(productData)
+  });
+
+  return await parseJsonResponse(response);
+}
+
+/**
+ * Retrieves a single product by ID from MongoDB database.
+ * Route: GET /api/products/:id
+ *
+ * @param {string} id - MongoDB ObjectId string
+ * @returns {Promise<Object>} Product document
+ */
+export async function getProductById(id) {
+  const response = await fetch(`${API_BASE_URL}/${id}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  return await parseJsonResponse(response);
+}
+
+/**
+ * Retrieves the recyclability score calculation for a saved product by ID.
+ * Route: GET /api/products/:id/score
+ *
+ * @param {string} id - MongoDB ObjectId string
+ * @returns {Promise<Object>} Calculated score breakdown object
+ */
+export async function getProductScore(id) {
+  const response = await fetch(`${API_BASE_URL}/${id}/score`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  return await parseJsonResponse(response);
+}
+

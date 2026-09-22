@@ -36,7 +36,8 @@ function calculateRecyclabilityScore(productData) {
       rating: 'Low Recyclability',
       grade: 'C',
       warning: 'No materials provided for scoring calculation',
-      materialBreakdown: []
+      materialBreakdown: [],
+      recommendations: []
     };
   }
 
@@ -57,7 +58,8 @@ function calculateRecyclabilityScore(productData) {
       rating: 'Low Recyclability',
       grade: 'C',
       warning: 'Total material weight must be greater than zero',
-      materialBreakdown: []
+      materialBreakdown: [],
+      recommendations: []
     };
   }
 
@@ -113,6 +115,88 @@ function calculateRecyclabilityScore(productData) {
     grade = 'B';
   }
 
+  // 7. Generate Rule-Based Sustainable Design Recommendations
+  const recommendations = [];
+
+  // Rule 1 & 2: Low-recyclability materials (< 60) and very low (< 40)
+  materials.forEach((mat) => {
+    const rawIdx = Number(mat.recyclabilityIndex);
+    const indexVal = isNaN(rawIdx) ? 0 : Math.min(100, Math.max(0, rawIdx));
+    const matName = mat.name ? mat.name.trim() : 'Unknown Material';
+    const lowerName = matName.toLowerCase();
+
+    if (indexVal < 60) {
+      // Find suitable alternative mapping if reasonable mapping exists
+      let alternative = null;
+      if (lowerName.includes('pvc')) {
+        alternative = {
+          suggested: 'PET (Plastic) or HDPE (Plastic)',
+          reason: 'PVC contains chlorine which disrupts conventional recycling streams and releases hazardous substances. PET or HDPE has widespread curbside collection and high secondary market demand.'
+        };
+      } else if (lowerName.includes('rubber')) {
+        alternative = {
+          suggested: 'Thermoplastic Elastomer (TPE) or PP (Polypropylene)',
+          reason: 'Vulcanized rubber cannot be re-melted easily. Thermoplastic Elastomers (TPE) or PP offer flexible properties while maintaining mechanical recyclability.'
+        };
+      } else if (lowerName.includes('ldpe') || lowerName.includes('film')) {
+        alternative = {
+          suggested: 'Cardboard / Paper or rigid HDPE',
+          reason: 'Thin flexible LDPE film has limited curbside municipal recovery. Paper-based cartons or rigid HDPE containers offer significantly higher circular recovery rates.'
+        };
+      } else if (lowerName.includes('bioplastic') || lowerName.includes('pla')) {
+        alternative = {
+          suggested: 'Cardboard / Paper or Recycled PET',
+          reason: 'Bioplastics like PLA require commercial high-heat composting facilities and contaminate conventional PET recycling streams. Recycled PET or certified paper has established recycling pathways.'
+        };
+      } else if (lowerName.includes('other') || lowerName.includes('composite') || lowerName.includes('multi')) {
+        alternative = {
+          suggested: 'Standardized Mono-Material (e.g., Aluminum, PET, or Cardboard)',
+          reason: 'Mixed composite blends cannot be sorted efficiently by automated optical sorters. Standardizing on mono-materials ensures clean end-of-life reprocessing.'
+        };
+      }
+
+      if (indexVal < 40) {
+        recommendations.push({
+          type: 'critical_material_replacement',
+          currentMaterial: matName,
+          suggestedMaterial: alternative ? alternative.suggested : null,
+          reason: alternative
+            ? `Critical recyclability barrier (${indexVal}/100): ${alternative.reason} This material severely impacts the product score and triggers a contamination penalty.`
+            : `Critical recyclability barrier (${indexVal}/100): This material severely degrades product circularity and triggers a contamination penalty.`
+        });
+      } else {
+        recommendations.push({
+          type: 'material_improvement',
+          currentMaterial: matName,
+          suggestedMaterial: alternative ? alternative.suggested : null,
+          reason: alternative
+            ? `Low recyclability index (${indexVal}/100): ${alternative.reason}`
+            : `Low recyclability index (${indexVal}/100): Consider substituting with a higher-rated circular material (index 70+) to improve the product score.`
+        });
+      }
+    }
+  });
+
+  // Rule 3: Mixed-Material Complexity
+  if (numMaterials > 1) {
+    recommendations.push({
+      type: 'mixed_material_complexity',
+      currentMaterial: `Multiple Materials (${numMaterials} types present)`,
+      suggestedMaterial: 'Monomaterial or Modular Snap-Fit Design',
+      reason: `Using multiple distinct materials incurs a -${mixedMaterialPenalty} pts mixed-material penalty and complicates mechanical sorting. Consider consolidating parts into a single material family or designing for tool-free disassembly.`
+    });
+  }
+
+  // Rule 4: High Contamination
+  if (contaminationPenalty > 0) {
+    recommendations.push({
+      type: 'contamination_reduction',
+      currentMaterial: 'Low-index components (< 40 recyclability index)',
+      suggestedMaterial: 'Contaminant-Free Alternatives',
+      reason: `A contamination penalty of -${contaminationPenalty} pts is currently deducted because low-index components make up a substantial portion of product weight. Phasing out or isolating these components directly restores lost points.`
+    });
+  }
+
   return {
     productName: productData?.name || 'Unnamed Product',
     totalWeight: Number(totalWeight.toFixed(4)),
@@ -125,7 +209,8 @@ function calculateRecyclabilityScore(productData) {
     finalScore,
     rating,
     grade,
-    materialBreakdown
+    materialBreakdown,
+    recommendations
   };
 }
 
