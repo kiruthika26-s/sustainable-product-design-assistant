@@ -5,6 +5,18 @@ import SimulationPage from "./pages/SimulationPage";
 
 function App() {
   const [currentPage, setCurrentPage] = useState("analysis");
+  const [simulationContext, setSimulationContext] = useState(null);
+  const [appliedMaterial, setAppliedMaterial] = useState(null);
+
+  const handleNavigateToSimulation = (context) => {
+    setSimulationContext(context);
+    setCurrentPage("simulation");
+  };
+
+  const handleApplySimulation = (simulationData) => {
+    setAppliedMaterial(simulationData);
+    setCurrentPage("analysis");
+  };
 
   return (
     <div className="app">
@@ -95,9 +107,18 @@ function App() {
       {/* Main Page View */}
       <main>
         {currentPage === "analysis" ? (
-          <ProductAnalysisPage />
+          <ProductAnalysisPage
+            onNavigateToSimulation={handleNavigateToSimulation}
+            appliedMaterial={appliedMaterial}
+            clearAppliedMaterial={() => setAppliedMaterial(null)}
+          />
         ) : (
-          <SimulationPage />
+          <SimulationPage
+            initialProductId={simulationContext?.productId}
+            initialCurrentMaterial={simulationContext?.currentMaterial}
+            initialAlternativeMaterial={simulationContext?.alternativeMaterial}
+            onApplySimulation={handleApplySimulation}
+          />
         )}
       </main>
     </div>

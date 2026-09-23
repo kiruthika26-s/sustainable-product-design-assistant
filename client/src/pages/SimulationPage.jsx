@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { getProducts, calculateScore } from "../services/api";
+import {
+  getProducts,
+  getProductById,
+  getProductScore,
+  calculateScore,
+  updateProduct,
+} from "../services/api";
 
 /**
  * Standard material database with recyclability index ratings (0-100),
@@ -166,6 +172,7 @@ function getRatingMeta(score) {
  * @param {Function} [props.onApplySimulation] - Optional callback to transfer chosen alternative back to product editor
  */
 function SimulationPage({
+  initialProductId,
   initialCurrentMaterial = "PVC (Plastic)",
   initialAlternativeMaterial = "Aluminum",
   onApplySimulation,
@@ -198,6 +205,21 @@ function SimulationPage({
   const [selectedProductId, setSelectedProductId] = useState("");
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState("");
+
+  // Selected Product details & simulation states
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productDetailsLoading, setProductDetailsLoading] = useState(false);
+  const [productDetailsError, setProductDetailsError] = useState("");
+  const [selectedMaterialIndex, setSelectedMaterialIndex] = useState(0);
+  const [productBaselineScore, setProductBaselineScore] = useState(null);
+  const [simulatedProductScore, setSimulatedProductScore] = useState(null);
+  const [simulating, setSimulating] = useState(false);
+
+  // Database update states for persisting simulation improvements
+  const [updatingProduct, setUpdatingProduct] = useState(false);
+  const [updateProductSuccess, setUpdateProductSuccess] = useState("");
+  const [updateProductError, setUpdateProductError] = useState("");
+
   // Load saved products from MongoDB when the page opens
   useEffect(() => {
     const loadSavedProducts = async () => {
@@ -217,6 +239,219 @@ function SimulationPage({
 
     loadSavedProducts();
   }, []);
+
+  // Helper to sync selected material from product into simulation parameters
+  const applyMaterialSelection = (mat, index) => {
+    setSelectedMaterialIndex(index);
+    const matName = (mat.name || "").trim();
+    setComponentPartName(matName || `Component ${index + 1}`);
+
+    // Check if material name matches or contains a known catalog key
+    const catalogMatch =
+      Object.keys(MATERIAL_CATALOG).find(
+        (k) => k.toLowerCase() === matName.toLowerCase(),
+      ) ||
+      Object.keys(MATERIAL_CATALOG).find((k) =>
+        matName.toLowerCase().includes(k.toLowerCase()),
+      );
+
+    if (catalogMatch) {
+      setCurrentMaterial(catalogMatch);
+      setCurrentIndex(
+        mat.recyclabilityIndex !== undefined && mat.recyclabilityIndex !== null
+          ? Number(mat.recyclabilityIndex)
+          : MATERIAL_CATALOG[catalogMatch].index,
+      );
+    } else {
+      setCurrentMaterial(matName || "Custom Material");
+      setCurrentIndex(
+        mat.recyclabilityIndex !== undefined && mat.recyclabilityIndex !== null
+          ? Number(mat.recyclabilityIndex)
+          : 50,
+      );
+    }
+  };
+
+  // Handle product selection from dropdown
+  const handleProductSelect = async (productId) => {
+    setSelectedProductId(productId);
+    setProductDetailsError("");
+    setSimulationResult(null);
+    setSimulatedProductScore(null);
+
+    if (!productId) {
+      setSelectedProduct(null);
+      setProductBaselineScore(null);
+      return;
+    }
+
+    setProductDetailsLoading(true);
+    try {
+      // 1. Fetch full product specifications from existing API
+      const res = await getProductById(productId);
+      const productData = res.data || res;
+      setSelectedProduct(productData);
+
+      // 2. Fetch or compute baseline score for product
+      try {
+        const scoreRes = await getProductScore(productId);
+        if (scoreRes && scoreRes.success) {
+          setProductBaselineScore(scoreRes.data);
+        } else if (
+          Array.isArray(productData.materials) &&
+          productData.materials.length > 0
+        ) {
+          const calcRes = await calculateScore(productData);
+          if (calcRes && calcRes.success) {
+            setProductBaselineScore(calcRes.data);
+          }
+        }
+      } catch (scoreErr) {
+        console.warn("Baseline score fetch fallback:", scoreErr);
+        if (
+          Array.isArray(productData.materials) &&
+          productData.materials.length > 0
+        ) {
+          try {
+            const fallbackCalc = await calculateScore(productData);
+            if (fallbackCalc && fallbackCalc.success) {
+              setProductBaselineScore(fallbackCalc.data);
+            }
+          } catch {
+            // ignore fallback score calculation error
+          }
+        }
+      }
+
+      // 3. Pre-select first material from the retrieved product
+      if (
+        Array.isArray(productData.materials) &&
+        productData.materials.length > 0
+      ) {
+        applyMaterialSelection(productData.materials[0], 0);
+      }
+    } catch (err) {
+      setProductDetailsError(err.message || "Failed to load product details.");
+      setSelectedProduct(null);
+      setProductBaselineScore(null);
+    } finally {
+      setProductDetailsLoading(false);
+    }
+  };
+
+  // Handle user picking a specific material from the product
+  const handleSelectProductMaterial = (index) => {
+    if (
+      !selectedProduct ||
+      !Array.isArray(selectedProduct.materials) ||
+      !selectedProduct.materials[index]
+    ) {
+      return;
+    }
+    applyMaterialSelection(selectedProduct.materials[index], index);
+    setSimulationResult(null);
+    setSimulatedProductScore(null);
+  };
+
+  // Clear selected product and return to standalone mode
+  const handleClearProduct = () => {
+    setSelectedProductId("");
+    setSelectedProduct(null);
+    setProductBaselineScore(null);
+    setSimulatedProductScore(null);
+    setProductDetailsError("");
+    setUpdateProductSuccess("");
+    setUpdateProductError("");
+  };
+
+  // Handle initialProductId passed via navigation from Product Analysis page
+  useEffect(() => {
+    if (initialProductId) {
+      handleProductSelect(initialProductId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialProductId]);
+
+  // Handle initial materials passed from recommendations or navigation context
+  useEffect(() => {
+    if (!initialProductId) {
+      if (initialCurrentMaterial) {
+        setCurrentMaterial(initialCurrentMaterial);
+        const curIdx = MATERIAL_CATALOG[initialCurrentMaterial]?.index ?? 50;
+        setCurrentIndex(curIdx);
+      }
+      if (initialAlternativeMaterial) {
+        setAlternativeMaterial(initialAlternativeMaterial);
+        const altIdx = MATERIAL_CATALOG[initialAlternativeMaterial]?.index ?? 50;
+        setAlternativeIndex(altIdx);
+      }
+    }
+  }, [initialProductId, initialCurrentMaterial, initialAlternativeMaterial]);
+
+  // Save simulated material changes directly back to MongoDB
+  const handleSaveSimulationToProduct = async () => {
+    if (!selectedProduct || !simulationResult) return;
+    const prodId = selectedProduct._id || selectedProduct.id;
+    if (!prodId) return;
+
+    setUpdatingProduct(true);
+    setUpdateProductSuccess("");
+    setUpdateProductError("");
+
+    try {
+      const updatedMaterials = (selectedProduct.materials || []).map(
+        (mat, idx) => {
+          if (idx === selectedMaterialIndex) {
+            return {
+              name: simulationResult.alternativeMaterial,
+              recyclabilityIndex: simulationResult.alternativeIndex,
+              weight: Number(mat.weight) || 0,
+            };
+          }
+          return {
+            name: mat.name,
+            recyclabilityIndex: Number(mat.recyclabilityIndex) || 0,
+            weight: Number(mat.weight) || 0,
+          };
+        },
+      );
+
+      const updatedPayload = {
+        name: selectedProduct.name,
+        category: selectedProduct.category,
+        description: selectedProduct.description,
+        packaging: selectedProduct.packaging,
+        materials: updatedMaterials,
+      };
+
+      const res = await updateProduct(prodId, updatedPayload);
+      if (res && res.success) {
+        const savedData = res.data || updatedPayload;
+        setSelectedProduct(savedData);
+        // Refresh products list in state so dropdown has fresh data
+        setProducts((prev) =>
+          prev.map((p) => ((p._id || p.id) === prodId ? savedData : p)),
+        );
+        if (simulatedProductScore) {
+          setProductBaselineScore(simulatedProductScore);
+        }
+        setUpdateProductSuccess(
+          `Product "${selectedProduct.name}" updated successfully in database with ${simulationResult.alternativeMaterial}!`,
+        );
+      } else {
+        setUpdateProductError(
+          res.error || "Failed to update product in database.",
+        );
+      }
+    } catch (err) {
+      setUpdateProductError(
+        err.message || "Server error while updating product.",
+      );
+    } finally {
+      setUpdatingProduct(false);
+    }
+  };
+
   // Handle current material dropdown change
   const handleCurrentMaterialChange = (e) => {
     const selected = e.target.value;
@@ -236,19 +471,19 @@ function SimulationPage({
   // Quick preset scenario loader
   const handleApplyPreset = (preset) => {
     setCurrentMaterial(preset.current);
-    setCurrentIndex(MATERIAL_CATALOG[preset.current]?.index ?? 50);
+    const curIdx = MATERIAL_CATALOG[preset.current]?.index ?? 50;
+    setCurrentIndex(curIdx);
 
     setAlternativeMaterial(preset.alternative);
-    setAlternativeIndex(MATERIAL_CATALOG[preset.alternative]?.index ?? 50);
+    const altIdx = MATERIAL_CATALOG[preset.alternative]?.index ?? 50;
+    setAlternativeIndex(altIdx);
 
     // Auto trigger simulation for smooth user experience
-    const curIdx = MATERIAL_CATALOG[preset.current]?.index ?? 50;
-    const altIdx = MATERIAL_CATALOG[preset.alternative]?.index ?? 50;
     computeSimulation(preset.current, curIdx, preset.alternative, altIdx);
   };
 
-  // Compute simulation values on the frontend
-  const computeSimulation = (currMat, currIdx, altMat, altIdx) => {
+  // Compute simulation values on the frontend and call backend API for product score if applicable
+  const computeSimulation = async (currMat, currIdx, altMat, altIdx) => {
     const numCurrent = Math.max(0, Math.min(100, Number(currIdx) || 0));
     const numAlternative = Math.max(0, Math.min(100, Number(altIdx) || 0));
     const scoreDiff = numAlternative - numCurrent;
@@ -283,12 +518,57 @@ function SimulationPage({
         minute: "2-digit",
       }),
     });
+
+    // If a saved product is selected, also compute product-level impact via scoring API
+    if (
+      selectedProduct &&
+      Array.isArray(selectedProduct.materials) &&
+      selectedProduct.materials.length > 0
+    ) {
+      setSimulating(true);
+      try {
+        const updatedMaterials = selectedProduct.materials.map((mat, idx) => {
+          if (idx === selectedMaterialIndex) {
+            return {
+              name: altMat,
+              recyclabilityIndex: numAlternative,
+              weight: Number(mat.weight) || 0,
+            };
+          }
+          return {
+            name: mat.name,
+            recyclabilityIndex: Number(mat.recyclabilityIndex) || 0,
+            weight: Number(mat.weight) || 0,
+          };
+        });
+
+        const simulatedPayload = {
+          name: selectedProduct.name,
+          category: selectedProduct.category,
+          materials: updatedMaterials,
+        };
+
+        const res = await calculateScore(simulatedPayload);
+        if (res && res.success) {
+          setSimulatedProductScore(res.data);
+        }
+      } catch (err) {
+        console.error(
+          "Failed to compute product simulation score via API:",
+          err,
+        );
+      } finally {
+        setSimulating(false);
+      }
+    } else {
+      setSimulatedProductScore(null);
+    }
   };
 
   // "Simulate" Button Click Handler
-  const handleSimulate = (e) => {
+  const handleSimulate = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    computeSimulation(
+    await computeSimulation(
       currentMaterial,
       currentIndex,
       alternativeMaterial,
@@ -298,12 +578,25 @@ function SimulationPage({
 
   // Reset simulation form to default clean state
   const handleReset = () => {
-    setCurrentMaterial("PVC (Plastic)");
-    setCurrentIndex(MATERIAL_CATALOG["PVC (Plastic)"]?.index ?? 15);
-    setAlternativeMaterial("Aluminum");
-    setAlternativeIndex(MATERIAL_CATALOG["Aluminum"]?.index ?? 95);
-    setComponentPartName("Main Housing / Body");
-    setSimulationResult(null);
+    if (
+      selectedProduct &&
+      Array.isArray(selectedProduct.materials) &&
+      selectedProduct.materials.length > 0
+    ) {
+      applyMaterialSelection(selectedProduct.materials[0], 0);
+      setAlternativeMaterial("Aluminum");
+      setAlternativeIndex(MATERIAL_CATALOG["Aluminum"]?.index ?? 95);
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+    } else {
+      setCurrentMaterial("PVC (Plastic)");
+      setCurrentIndex(MATERIAL_CATALOG["PVC (Plastic)"]?.index ?? 15);
+      setAlternativeMaterial("Aluminum");
+      setAlternativeIndex(MATERIAL_CATALOG["Aluminum"]?.index ?? 95);
+      setComponentPartName("Main Housing / Body");
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+    }
   };
 
   // Swap materials button handler
@@ -392,26 +685,115 @@ function SimulationPage({
           <select
             id="saved-product-select"
             value={selectedProductId}
-            onChange={(e) => setSelectedProductId(e.target.value)}
-            disabled={productsLoading}
+            onChange={(e) => handleProductSelect(e.target.value)}
+            disabled={productsLoading || productDetailsLoading}
           >
             <option value="">
               {productsLoading
                 ? "Loading saved products..."
-                : "Select a saved product"}
+                : "-- Standalone / Custom Simulation (No Product) --"}
             </option>
             {products.map((product) => (
               <option key={product._id} value={product._id}>
-                {product.name} ({product.category})
+                {product.name} ({product.category}) —{" "}
+                {product.materials?.length || 0} materials
               </option>
             ))}
           </select>
         </div>
 
+        {productDetailsLoading && (
+          <div
+            style={{
+              marginTop: "10px",
+              color: "#166534",
+              fontSize: "0.88rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+            }}
+          >
+            <div className="spinner" style={{ width: "16px", height: "16px" }}></div>
+            <span>Loading product specifications & materials from backend...</span>
+          </div>
+        )}
+
         {productsError && (
           <p style={{ color: "#b91c1c", marginTop: "8px" }}>{productsError}</p>
         )}
+
+        {productDetailsError && (
+          <p style={{ color: "#b91c1c", marginTop: "8px" }}>{productDetailsError}</p>
+        )}
+
+        {selectedProduct && (
+          <div
+            style={{
+              marginTop: "14px",
+              padding: "12px 14px",
+              backgroundColor: "#f0fdf4",
+              border: "1px solid #bbf7d0",
+              borderRadius: "8px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "10px",
+            }}
+          >
+            <div>
+              <span
+                style={{
+                  fontWeight: 700,
+                  color: "#166534",
+                  fontSize: "0.95rem",
+                }}
+              >
+                ✓ Active Product: {selectedProduct.name}
+              </span>
+              <div
+                style={{
+                  fontSize: "0.82rem",
+                  color: "#475569",
+                  marginTop: "2px",
+                }}
+              >
+                Category: <strong>{selectedProduct.category}</strong> •
+                Materials:{" "}
+                <strong>{selectedProduct.materials?.length || 0}</strong> • Total
+                Weight:{" "}
+                <strong>
+                  {selectedProduct.materials
+                    ? selectedProduct.materials
+                        .reduce((acc, m) => acc + (Number(m.weight) || 0), 0)
+                        .toFixed(3)
+                    : 0}{" "}
+                  kg
+                </strong>
+                {productBaselineScore && (
+                  <span>
+                    {" "}
+                    • Baseline Recyclability:{" "}
+                    <strong style={{ color: "#166534" }}>
+                      {productBaselineScore.finalScore}/100 (Grade{" "}
+                      {productBaselineScore.grade})
+                    </strong>
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              onClick={handleClearProduct}
+              title="Disconnect product and return to standalone simulation mode"
+            >
+              ✕ Switch to Standalone Mode
+            </button>
+          </div>
+        )}
       </div>
+
       {/* 3. Quick Scenario Presets */}
       <div style={{ marginBottom: "20px" }}>
         <div
@@ -454,8 +836,9 @@ function SimulationPage({
             <div>
               <h2 className="section-title">1. Simulation Parameters</h2>
               <p className="section-description">
-                Configure your current component and select an eco-friendly
-                candidate to evaluate.
+                {selectedProduct
+                  ? `Select a component from "${selectedProduct.name}" to replace with an eco-friendly candidate.`
+                  : "Configure your current component and select an eco-friendly candidate to evaluate."}
               </p>
             </div>
             <button
@@ -469,7 +852,178 @@ function SimulationPage({
           </div>
 
           <form onSubmit={handleSimulate}>
-            {/* Optional Component Name */}
+            {/* Display Selected Product's Actual Materials & Allow Component Selection */}
+            {selectedProduct && (
+              <div
+                style={{
+                  marginBottom: "20px",
+                  padding: "14px 16px",
+                  backgroundColor: "#f8faf9",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "8px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: "10px",
+                    flexWrap: "wrap",
+                    gap: "6px",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.85rem",
+                      fontWeight: 700,
+                      color: "#1b4d3e",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.4px",
+                    }}
+                  >
+                    Product Materials ({selectedProduct.materials?.length || 0})
+                    — Select Material to Replace:
+                  </label>
+                  <span style={{ fontSize: "0.78rem", color: "#64748b" }}>
+                    Click an item to target it for replacement
+                  </span>
+                </div>
+
+                {!Array.isArray(selectedProduct.materials) ||
+                selectedProduct.materials.length === 0 ? (
+                  <p style={{ fontSize: "0.85rem", color: "#64748b", margin: 0 }}>
+                    No materials recorded for this product.
+                  </p>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
+                    {selectedProduct.materials.map((mat, idx) => {
+                      const isSelected = selectedMaterialIndex === idx;
+                      const matIdx = Number(mat.recyclabilityIndex) || 0;
+                      const ratingMeta = getRatingMeta(matIdx);
+
+                      return (
+                        <div
+                          key={`prod-mat-row-${idx}`}
+                          onClick={() => handleSelectProductMaterial(idx)}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "10px 14px",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            border: isSelected
+                              ? "2px solid #2e7d32"
+                              : "1px solid #e2e8f0",
+                            backgroundColor: isSelected ? "#f0fdf4" : "#ffffff",
+                            boxShadow: isSelected
+                              ? "0 2px 8px rgba(46, 125, 50, 0.12)"
+                              : "none",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "10px",
+                            }}
+                          >
+                            <input
+                              type="radio"
+                              id={`radio-mat-${idx}`}
+                              name="product-material-choice"
+                              checked={isSelected}
+                              onChange={() => handleSelectProductMaterial(idx)}
+                              style={{
+                                cursor: "pointer",
+                                accentColor: "#2e7d32",
+                              }}
+                            />
+                            <div>
+                              <div
+                                style={{
+                                  fontWeight: isSelected ? 700 : 600,
+                                  color: isSelected ? "#1b4d3e" : "#1e293b",
+                                  fontSize: "0.9rem",
+                                }}
+                              >
+                                {mat.name || `Material #${idx + 1}`}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: "0.78rem",
+                                  color: "#64748b",
+                                  marginTop: "2px",
+                                }}
+                              >
+                                Weight: {mat.weight} kg
+                              </div>
+                            </div>
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "0.78rem",
+                                fontWeight: 700,
+                                padding: "3px 8px",
+                                borderRadius: "10px",
+                                backgroundColor:
+                                  matIdx >= 80
+                                    ? "#dcfce7"
+                                    : matIdx >= 50
+                                      ? "#fef3c7"
+                                      : "#fee2e2",
+                                color:
+                                  matIdx >= 80
+                                    ? "#166534"
+                                    : matIdx >= 50
+                                      ? "#92400e"
+                                      : "#991b1b",
+                              }}
+                            >
+                              Index: {matIdx} (Grade {ratingMeta.grade})
+                            </span>
+                            {isSelected && (
+                              <span
+                                style={{
+                                  fontSize: "0.72rem",
+                                  fontWeight: 700,
+                                  backgroundColor: "#2e7d32",
+                                  color: "#ffffff",
+                                  padding: "2px 8px",
+                                  borderRadius: "4px",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.3px",
+                                }}
+                              >
+                                Target
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Component Name */}
             <div className="form-group" style={{ marginBottom: "18px" }}>
               <label htmlFor="sim-part-name">
                 Component / Part Description
@@ -541,6 +1095,9 @@ function SimulationPage({
                     value={currentMaterial}
                     onChange={handleCurrentMaterialChange}
                   >
+                    {!MATERIAL_OPTIONS.includes(currentMaterial) && (
+                      <option value={currentMaterial}>{currentMaterial}</option>
+                    )}
                     {MATERIAL_OPTIONS.map((opt) => (
                       <option key={`current-${opt}`} value={opt}>
                         {opt}
@@ -670,6 +1227,7 @@ function SimulationPage({
               <button
                 type="submit"
                 className="btn-primary"
+                disabled={simulating}
                 style={{
                   flex: 1,
                   display: "flex",
@@ -678,7 +1236,9 @@ function SimulationPage({
                   gap: "8px",
                 }}
               >
-                <span>⚡ Simulate Impact</span>
+                <span>
+                  {simulating ? "Calculating Impact..." : "⚡ Simulate Impact"}
+                </span>
               </button>
               <button
                 type="button"
@@ -1046,6 +1606,338 @@ function SimulationPage({
                   </div>
                 </div>
               </div>
+
+              {/* Product-Level Recyclability Impact Card (when simulating a saved product) */}
+              {selectedProduct && simulatedProductScore && (
+                <div
+                  style={{
+                    background: "#ffffff",
+                    border: "1px solid #bbf7d0",
+                    borderRadius: "10px",
+                    padding: "16px",
+                    marginBottom: "16px",
+                    boxShadow: "0 2px 8px rgba(22, 101, 52, 0.06)",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "12px",
+                      flexWrap: "wrap",
+                      gap: "8px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.82rem",
+                        fontWeight: 700,
+                        color: "#166534",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      📦 Overall Product Impact: {selectedProduct.name}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        background: "#dcfce7",
+                        color: "#166534",
+                        padding: "2px 8px",
+                        borderRadius: "10px",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {selectedProduct.category}
+                    </span>
+                  </div>
+
+                  {productBaselineScore ? (
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr auto 1fr",
+                        alignItems: "center",
+                        gap: "12px",
+                        textAlign: "center",
+                        marginBottom: "14px",
+                      }}
+                    >
+                      {/* Baseline Product Score */}
+                      <div
+                        style={{
+                          background: "#f8fafc",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "8px",
+                          padding: "10px 8px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "#64748b",
+                            fontWeight: 600,
+                            marginBottom: "2px",
+                          }}
+                        >
+                          ORIGINAL PRODUCT
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "1.5rem",
+                            fontWeight: 800,
+                            color: "#334155",
+                          }}
+                        >
+                          {productBaselineScore.finalScore}
+                          <span
+                            style={{
+                              fontSize: "0.85rem",
+                              fontWeight: 600,
+                              color: "#64748b",
+                            }}
+                          >
+                            /100
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            color: "#64748b",
+                          }}
+                        >
+                          Grade {productBaselineScore.grade} •{" "}
+                          {productBaselineScore.rating}
+                        </div>
+                      </div>
+
+                      {/* Product Score Delta */}
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <span style={{ fontSize: "1.3rem", color: "#64748b" }}>
+                          ➔
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "0.82rem",
+                            fontWeight: 800,
+                            padding: "3px 8px",
+                            borderRadius: "12px",
+                            backgroundColor:
+                              simulatedProductScore.finalScore >
+                              productBaselineScore.finalScore
+                                ? "#dcfce7"
+                                : simulatedProductScore.finalScore <
+                                    productBaselineScore.finalScore
+                                  ? "#fee2e2"
+                                  : "#f1f5f9",
+                            color:
+                              simulatedProductScore.finalScore >
+                              productBaselineScore.finalScore
+                                ? "#15803d"
+                                : simulatedProductScore.finalScore <
+                                    productBaselineScore.finalScore
+                                  ? "#b91c1c"
+                                  : "#475569",
+                          }}
+                        >
+                          {simulatedProductScore.finalScore -
+                            productBaselineScore.finalScore >
+                          0
+                            ? `+${simulatedProductScore.finalScore - productBaselineScore.finalScore}`
+                            : simulatedProductScore.finalScore -
+                              productBaselineScore.finalScore}{" "}
+                          pts
+                        </span>
+                      </div>
+
+                      {/* Simulated Product Score */}
+                      <div
+                        style={{
+                          background: "#f0fdf4",
+                          border: "1px solid #86efac",
+                          borderRadius: "8px",
+                          padding: "10px 8px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "0.72rem",
+                            color: "#166534",
+                            fontWeight: 600,
+                            marginBottom: "2px",
+                          }}
+                        >
+                          SIMULATED PRODUCT
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "1.5rem",
+                            fontWeight: 800,
+                            color: "#166534",
+                          }}
+                        >
+                          {simulatedProductScore.finalScore}
+                          <span
+                            style={{
+                              fontSize: "0.85rem",
+                              fontWeight: 600,
+                              color: "#15803d",
+                            }}
+                          >
+                            /100
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            color: "#166534",
+                          }}
+                        >
+                          Grade {simulatedProductScore.grade} •{" "}
+                          {simulatedProductScore.rating}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: "12px", textAlign: "center" }}>
+                      <div
+                        style={{
+                          fontSize: "1.4rem",
+                          fontWeight: 800,
+                          color: "#166534",
+                        }}
+                      >
+                        Simulated Product Score:{" "}
+                        {simulatedProductScore.finalScore}/100 (Grade{" "}
+                        {simulatedProductScore.grade})
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Penalty Breakdown */}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: "0.78rem",
+                      color: "#475569",
+                      padding: "8px 12px",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "6px",
+                      flexWrap: "wrap",
+                      gap: "6px",
+                    }}
+                  >
+                    <span>
+                      Mixed Material Penalty:{" "}
+                      <strong>
+                        -
+                        {simulatedProductScore.penalties
+                          ?.mixedMaterialPenalty ?? 0}{" "}
+                        pts
+                      </strong>
+                    </span>
+                    <span>
+                      Contamination Penalty:{" "}
+                      <strong>
+                        -
+                        {simulatedProductScore.penalties
+                          ?.contaminationPenalty ?? 0}{" "}
+                        pts
+                      </strong>
+                    </span>
+                  </div>
+
+                  {/* Database Update Feedback Banners */}
+                  {updateProductSuccess && (
+                    <div
+                      className="success-banner"
+                      style={{
+                        marginTop: "12px",
+                        fontSize: "0.85rem",
+                        padding: "10px 12px",
+                      }}
+                    >
+                      ✓ {updateProductSuccess}
+                    </div>
+                  )}
+
+                  {updateProductError && (
+                    <div
+                      className="error-banner"
+                      style={{
+                        marginTop: "12px",
+                        fontSize: "0.85rem",
+                        padding: "10px 12px",
+                      }}
+                    >
+                      {updateProductError}
+                    </div>
+                  )}
+
+                  {/* Actions for updating DB or applying to editor */}
+                  <div
+                    style={{
+                      marginTop: "14px",
+                      display: "flex",
+                      gap: "10px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="btn-success"
+                      disabled={updatingProduct}
+                      onClick={handleSaveSimulationToProduct}
+                      style={{
+                        flex: 1,
+                        display: "inline-flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <span>
+                        {updatingProduct
+                          ? "Saving to Database..."
+                          : "💾 Save Updated Product to Database"}
+                      </span>
+                    </button>
+
+                    {onApplySimulation && (
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() =>
+                          onApplySimulation({
+                            productId:
+                              selectedProduct._id || selectedProduct.id,
+                            componentName: simulationResult.partName,
+                            material: simulationResult.alternativeMaterial,
+                            recyclabilityIndex:
+                              simulationResult.alternativeIndex,
+                            materialIndex: selectedMaterialIndex,
+                          })
+                        }
+                        title="Load this improved material into Product Analysis editor"
+                      >
+                        Apply to Product Editor ➔
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Key Design Takeaways */}
               <div

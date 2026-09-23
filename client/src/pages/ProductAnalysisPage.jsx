@@ -9,7 +9,11 @@ import {
   getProductScore,
 } from "../services/api";
 
-function ProductAnalysisPage() {
+function ProductAnalysisPage({
+  onNavigateToSimulation,
+  appliedMaterial,
+  clearAppliedMaterial,
+}) {
   // General Product Details State
   const [productInfo, setProductInfo] = useState({
     name: "",
@@ -31,6 +35,75 @@ function ProductAnalysisPage() {
 
   // Edit Product state
   const [editingProduct, setEditingProduct] = useState(null);
+
+  // Notification for simulated material applied from What-If
+  const [appliedNotification, setAppliedNotification] = useState("");
+
+  // Handle applied alternative material from What-If Simulation
+  useEffect(() => {
+    if (appliedMaterial) {
+      const { componentName, material, recyclabilityIndex, materialIndex } =
+        appliedMaterial;
+
+      setMaterials((prev) => {
+        if (
+          materialIndex !== undefined &&
+          materialIndex !== null &&
+          prev[materialIndex]
+        ) {
+          return prev.map((item, idx) =>
+            idx === materialIndex
+              ? {
+                  ...item,
+                  name: componentName || item.name,
+                  type: material,
+                  recyclabilityIndex: recyclabilityIndex,
+                }
+              : item,
+          );
+        }
+
+        const matchIdx = prev.findIndex(
+          (m) =>
+            (m.name || "").trim().toLowerCase() ===
+            (componentName || "").trim().toLowerCase(),
+        );
+
+        if (matchIdx !== -1) {
+          return prev.map((item, idx) =>
+            idx === matchIdx
+              ? {
+                  ...item,
+                  type: material,
+                  recyclabilityIndex: recyclabilityIndex,
+                }
+              : item,
+          );
+        }
+
+        return prev.map((item, idx) =>
+          idx === 0
+            ? {
+                ...item,
+                name: componentName || item.name,
+                type: material,
+                recyclabilityIndex: recyclabilityIndex,
+              }
+            : item,
+        );
+      });
+
+      setAppliedNotification(
+        `Applied simulated material "${material}" (Index: ${recyclabilityIndex}) to component "${componentName || "Component"}"!`,
+      );
+
+      if (clearAppliedMaterial) {
+        clearAppliedMaterial();
+      }
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [appliedMaterial, clearAppliedMaterial]);
 
   // API interaction states for Calculation
   const [scoreResult, setScoreResult] = useState(null);
@@ -504,6 +577,35 @@ function ProductAnalysisPage() {
             </div>
           )}
 
+          {/* Applied Simulation Banner */}
+          {appliedNotification && (
+            <div
+              className="success-banner"
+              style={{
+                marginBottom: "16px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>✓ {appliedNotification}</span>
+              <button
+                type="button"
+                onClick={() => setAppliedNotification("")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#166534",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  fontSize: "1rem",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Section 1: General Product Specifications */}
           <section className="form-section card">
             <div className="section-header-row">
@@ -795,6 +897,40 @@ function ProductAnalysisPage() {
                           <p style={{ margin: "6px 0 0" }}>
                             <strong>Reason:</strong> {rec.reason}
                           </p>
+
+                          {rec.suggestedMaterial && onNavigateToSimulation && (
+                            <div style={{ marginTop: "10px" }}>
+                              <button
+                                type="button"
+                                className="btn-secondary btn-sm"
+                                onClick={() => {
+                                  const rawAlt = rec.suggestedMaterial
+                                    .split(" or ")[0]
+                                    .trim();
+                                  onNavigateToSimulation({
+                                    productId:
+                                      editingProduct?._id ||
+                                      editingProduct?.id ||
+                                      null,
+                                    currentMaterial: rec.currentMaterial,
+                                    alternativeMaterial: rawAlt,
+                                  });
+                                }}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  color: "#166534",
+                                  backgroundColor: "#ffffff",
+                                  borderColor: "#86efac",
+                                  fontWeight: 600,
+                                }}
+                                title="Open this recommendation in What-If Simulation"
+                              >
+                                <span>⚡ Test in What-If Simulation</span>
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -940,6 +1076,26 @@ function ProductAnalysisPage() {
                       >
                         {loadingScoreId === id ? "Loading..." : "View Score"}
                       </button>
+                      {onNavigateToSimulation && (
+                        <button
+                          type="button"
+                          className="btn-secondary btn-sm"
+                          onClick={() =>
+                            onNavigateToSimulation({
+                              productId: id,
+                            })
+                          }
+                          title="Simulate alternative materials for this product"
+                          style={{
+                            color: "#166534",
+                            backgroundColor: "#f0fdf4",
+                            borderColor: "#86efac",
+                            fontWeight: 600,
+                          }}
+                        >
+                          ⚡ Simulate
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn-secondary btn-sm"
