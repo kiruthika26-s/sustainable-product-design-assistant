@@ -3,20 +3,53 @@ import {
   calculateScore,
   createProduct,
   getProducts,
-  deleteProduct
+  deleteProduct,
+  getMe,
+  setAuthToken
 } from "./services/api";
+import Navbar from "./components/Navbar";
+import DashboardView from "./components/DashboardView";
+import ProductDetailModal from "./components/ProductDetailModal";
+import RecommendationsView from "./components/RecommendationsView";
+import WhatIfSimulationView from "./components/WhatIfSimulationView";
+import ProductComparisonView from "./components/ProductComparisonView";
+import AuthModal from "./components/AuthModal";
 import "./App.css";
 
 function App() {
+  // Navigation tab state: 'dashboard' | 'create' | 'saved' | 'recommendations' | 'whatif' | 'compare'
+  const [activeTab, setActiveTab] = useState("dashboard");
+
+  // Auth State
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+
+  // Selected Product for Details Modal
+  const [selectedProduct, setSelectedProduct] = useState(null);
+
   // Product details state
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Plastic");
   const [description, setDescription] = useState("");
 
+  // Optional Packaging Specification state
+  const [showPackaging, setShowPackaging] = useState(false);
+  const [packagingMaterial, setPackagingMaterial] = useState("");
+  const [packagingWeight, setPackagingWeight] = useState("");
+  const [packagingIndex, setPackagingIndex] = useState("");
+
   // Materials array state
   const [materials, setMaterials] = useState([
     { name: "", weight: "", recyclabilityIndex: "" }
   ]);
+
+  // Simulation Preset for bridge from Recommendations to What-If
+  const [simulationPreset, setSimulationPreset] = useState(null);
+
+  // Search and Filter states for Saved Products List
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterCategory, setFilterCategory] = useState("All");
+  const [filterStage, setFilterStage] = useState("All");
 
   // API interaction states for Calculation
   const [scoreResult, setScoreResult] = useState(null);
@@ -36,6 +69,21 @@ function App() {
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState(null);
   const [deletingProductId, setDeletingProductId] = useState(null);
+
+  // Load current logged-in user on startup if token exists
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await getMe();
+        if (res && res.success) {
+          setCurrentUser(res.data);
+        }
+      } catch (e) {
+        // Token expired or invalid
+      }
+    };
+    fetchUser();
+  }, []);
 
   // Load saved products from MongoDB Atlas
   const loadProducts = async () => {
@@ -59,6 +107,11 @@ function App() {
   useEffect(() => {
     loadProducts();
   }, []);
+
+  const handleLogout = () => {
+    setAuthToken(null);
+    setCurrentUser(null);
+  };
 
   // Material list handlers
   const handleAddMaterial = () => {
@@ -140,15 +193,33 @@ function App() {
     setValidationErrors([]);
     setLoading(true);
 
+    const payloadMaterials = materials.map((m) => ({
+      name: m.name.trim(),
+      weight: Number(m.weight),
+      recyclabilityIndex: Number(m.recyclabilityIndex)
+    }));
+
+    let packagingData = null;
+    if (showPackaging && packagingMaterial.trim() && Number(packagingWeight) > 0) {
+      packagingData = {
+        material: packagingMaterial.trim(),
+        weight: Number(packagingWeight),
+        recyclabilityIndex: Number(packagingIndex) || 0
+      };
+      // Include packaging material in recyclability evaluation
+      payloadMaterials.push({
+        name: `Packaging: ${packagingMaterial.trim()}`,
+        weight: Number(packagingWeight),
+        recyclabilityIndex: Number(packagingIndex) || 0
+      });
+    }
+
     const payload = {
       name: name.trim(),
       category: category.trim(),
       description: description.trim(),
-      materials: materials.map((m) => ({
-        name: m.name.trim(),
-        weight: Number(m.weight),
-        recyclabilityIndex: Number(m.recyclabilityIndex)
-      }))
+      materials: payloadMaterials,
+      packaging: packagingData
     };
 
     try {
@@ -202,6 +273,10 @@ function App() {
 
   // Delete handler calling Product deletion API
   const handleDeleteProduct = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this product?")) {
+      return;
+    }
+
     setDeletingProductId(id);
     try {
       const response = await deleteProduct(id);
@@ -219,348 +294,418 @@ function App() {
 
   return (
     <div className="container">
-      <header className="header">
+      {/* Navigation Header */}
+      <Navbar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        currentUser={currentUser}
+        onOpenAuth={() => setAuthModalOpen(true)}
+        onLogout={handleLogout}
+      />
+
+      <header className="header" style={{ marginTop: "15px" }}>
         <h1>Sustainable Product Lifecycle Management Platform</h1>
         <p className="subtitle">
           Real-time Recyclability Score & Material Sustainability Assessment
         </p>
       </header>
 
-      <main className="main-content">
-        {/* Left Side: Product Input Form */}
-        <section className="card form-card">
-          <h2>Product Specification</h2>
+      {/* Main Content Rendered According to Active Tab */}
+      {activeTab === "dashboard" && (
+        <DashboardView
+          products={products}
+          onSelectProduct={(p) => setSelectedProduct(p)}
+          onNavigate={(tab) => setActiveTab(tab)}
+        />
+      )}
 
-          <form onSubmit={handleCalculateScore}>
-            <div className="form-group">
-              <label htmlFor="productName">Product Name *</label>
-              <input
-                id="productName"
-                type="text"
-                placeholder="e.g. Eco Friendly Water Bottle"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
+      {activeTab === "create" && (
+        <main className="main-content">
+          {/* Left Side: Product Input Form */}
+          <section className="card form-card">
+            <h2>Product Specification</h2>
 
-            <div className="form-group">
-              <label htmlFor="productCategory">Category *</label>
-              <select
-                id="productCategory"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="Plastic">Plastic</option>
-                <option value="Paper">Paper</option>
-                <option value="Glass">Glass</option>
-                <option value="Metal">Metal</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="productDescription">Description (Optional)</label>
-              <textarea
-                id="productDescription"
-                placeholder="Brief description of product features..."
-                rows="2"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-
-            {/* Materials List Section */}
-            <div className="materials-section">
-              <div className="section-header">
-                <h3>Materials Composition</h3>
-                <button
-                  type="button"
-                  className="btn-secondary btn-sm"
-                  onClick={handleAddMaterial}
-                >
-                  + Add Material
-                </button>
+            <form onSubmit={handleCalculateScore}>
+              <div className="form-group">
+                <label htmlFor="productName">Product Name *</label>
+                <input
+                  id="productName"
+                  type="text"
+                  placeholder="e.g. Eco Friendly Water Bottle"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
 
-              {materials.map((mat, index) => (
-                <div key={index} className="material-item-card">
-                  <div className="material-item-header">
-                    <span>Material #{index + 1}</span>
-                    {materials.length > 1 && (
+              <div className="form-group">
+                <label htmlFor="productCategory">Category *</label>
+                <select
+                  id="productCategory"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                >
+                  <option value="Plastic">Plastic</option>
+                  <option value="Paper">Paper</option>
+                  <option value="Glass">Glass</option>
+                  <option value="Metal">Metal</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="productDescription">Description (Optional)</label>
+                <textarea
+                  id="productDescription"
+                  placeholder="Brief description of product features..."
+                  rows="2"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+
+              {/* Materials List Section */}
+              <div className="materials-section">
+                <div className="section-header">
+                  <h3>Materials Composition</h3>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={handleAddMaterial}
+                  >
+                    + Add Material
+                  </button>
+                </div>
+
+                {materials.map((mat, index) => (
+                  <div key={index} className="material-item-card">
+                    <div className="material-item-header">
+                      <span>Material #{index + 1}</span>
+                      {materials.length > 1 && (
+                        <button
+                          type="button"
+                          className="btn-danger-text"
+                          onClick={() => handleRemoveMaterial(index)}
+                          title="Remove Material"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="form-group">
+                      <input
+                        type="text"
+                        placeholder="Material Name (e.g. PET Plastic)"
+                        value={mat.name}
+                        onChange={(e) =>
+                          handleMaterialChange(index, "name", e.target.value)
+                        }
+                      />
+                    </div>
+
+                    <div className="form-row">
+                      <div className="form-group col">
+                        <label>Weight (kg) *</label>
+                        <input
+                          type="number"
+                          min="0.001"
+                          step="0.001"
+                          placeholder="e.g. 0.25"
+                          value={mat.weight}
+                          onChange={(e) =>
+                            handleMaterialChange(index, "weight", e.target.value)
+                          }
+                        />
+                      </div>
+
+                      <div className="form-group col">
+                        <label>Recyclability Index (0-100) *</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          placeholder="e.g. 85"
+                          value={mat.recyclabilityIndex}
+                          onChange={(e) =>
+                            handleMaterialChange(
+                              index,
+                              "recyclabilityIndex",
+                              e.target.value
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Validation Errors Banner */}
+              {validationErrors.length > 0 && (
+                <div className="error-banner">
+                  <strong>Please fix the following errors:</strong>
+                  <ul>
+                    {validationErrors.map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* API Calculation Error Alert */}
+              {error && <div className="error-banner">{error}</div>}
+
+              <button
+                type="submit"
+                className="btn-primary btn-submit"
+                disabled={loading}
+              >
+                {loading ? "Calculating..." : "Calculate Recyclability Score"}
+              </button>
+            </form>
+          </section>
+
+          {/* Right Side: Score Results Display & Save Section */}
+          <section className="card result-card">
+            <h2>Recyclability Assessment</h2>
+
+            {loading ? (
+              <div className="loading-container">
+                <div className="spinner"></div>
+                <p>Calculating sustainability score from backend engine...</p>
+              </div>
+            ) : scoreResult ? (
+              <div className="results-container">
+                {/* Overall Score Badge */}
+                <div
+                  className={`score-badge-card grade-${scoreResult.grade?.toLowerCase()}`}
+                >
+                  <div className="score-number">{scoreResult.finalScore}%</div>
+                  <div className="score-details">
+                    <span className="grade-pill">Grade {scoreResult.grade}</span>
+                    <span className="rating-text">{scoreResult.rating}</span>
+                  </div>
+                </div>
+
+                {/* Score Breakdown Table */}
+                <div className="breakdown-section">
+                  <h3>Score Breakdown</h3>
+                  <div className="breakdown-list">
+                    <div className="breakdown-item">
+                      <span>Base Weighted Score</span>
+                      <strong>{scoreResult.baseWeightedScore}%</strong>
+                    </div>
+                    <div className="breakdown-item penalty">
+                      <span>Mixed Material Penalty</span>
+                      <strong>-{scoreResult.penalties?.mixedMaterialPenalty} pts</strong>
+                    </div>
+                    <div className="breakdown-item penalty">
+                      <span>Contamination Penalty</span>
+                      <strong>-{scoreResult.penalties?.contaminationPenalty} pts</strong>
+                    </div>
+                    <div className="breakdown-item total-penalty">
+                      <span>Total Penalty Deductions</span>
+                      <strong>-{scoreResult.penalties?.totalPenalty} pts</strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Material Percentages Table */}
+                {scoreResult.materialBreakdown &&
+                  scoreResult.materialBreakdown.length > 0 && (
+                    <div className="breakdown-section">
+                      <h3>Material Contribution Analysis</h3>
+                      <table className="material-table">
+                        <thead>
+                          <tr>
+                            <th>Material</th>
+                            <th>Weight</th>
+                            <th>Share</th>
+                            <th>Index</th>
+                            <th>Points</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {scoreResult.materialBreakdown.map((item, idx) => (
+                            <tr key={idx}>
+                              <td>{item.name}</td>
+                              <td>{item.weight} kg</td>
+                              <td>{item.weightPercentage}%</td>
+                              <td>{item.recyclabilityIndex}/100</td>
+                              <td>+{item.contribution}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                {/* Save Product Action Section */}
+                <div className="save-action-section">
+                  {saveSuccess && (
+                    <div className="success-banner">{saveSuccess}</div>
+                  )}
+                  {saveError && <div className="error-banner">{saveError}</div>}
+
+                  <button
+                    type="button"
+                    className="btn-success btn-save"
+                    disabled={saving || isSaved}
+                    onClick={handleSaveProduct}
+                  >
+                    {saving
+                      ? "Saving..."
+                      : isSaved
+                      ? "Product Saved ✓"
+                      : "Save Product"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="placeholder-container">
+                <div className="placeholder-icon">🌱</div>
+                <p>
+                  Fill out the product specifications and materials form, then
+                  click <strong>"Calculate Recyclability Score"</strong> to view
+                  the dynamic sustainability report.
+                </p>
+              </div>
+            )}
+          </section>
+        </main>
+      )}
+
+      {activeTab === "saved" && (
+        <section className="saved-products-section" style={{ marginTop: 0, paddingTop: 0, borderTop: "none" }}>
+          <div className="section-header">
+            <h2>Saved Products ({products.length})</h2>
+            <button
+              type="button"
+              className="btn-secondary btn-sm"
+              onClick={loadProducts}
+              disabled={productsLoading}
+            >
+              {productsLoading ? "Refreshing..." : "Refresh Products"}
+            </button>
+          </div>
+
+          {productsError && (
+            <div className="error-banner">{productsError}</div>
+          )}
+
+          {productsLoading ? (
+            <div className="loading-container">
+              <div className="spinner"></div>
+              <p>Loading saved products from database...</p>
+            </div>
+          ) : products.length === 0 ? (
+            <div className="placeholder-container card">
+              <p>No saved products yet. Click <strong>Create & Score</strong> to evaluate and save a product!</p>
+            </div>
+          ) : (
+            <div className="products-grid">
+              {products.map((product) => {
+                const id = product._id || product.id;
+                const totalWeight = product.materials
+                  ? product.materials.reduce(
+                      (sum, m) => sum + (Number(m.weight) || 0),
+                      0
+                    )
+                  : 0;
+
+                return (
+                  <div key={id} className="card product-card">
+                    <div className="product-card-header">
+                      <div>
+                        <h3 className="product-name">{product.name}</h3>
+                        <span className="category-tag">{product.category}</span>
+                        <span className="version-tag">v{product.version || 1}</span>
+                      </div>
                       <button
                         type="button"
                         className="btn-danger-text"
-                        onClick={() => handleRemoveMaterial(index)}
-                        title="Remove Material"
+                        disabled={deletingProductId === id}
+                        onClick={() => handleDeleteProduct(id)}
                       >
-                        Remove
+                        {deletingProductId === id ? "Deleting..." : "Delete"}
                       </button>
+                    </div>
+
+                    {product.description && (
+                      <p className="product-desc">{product.description}</p>
                     )}
-                  </div>
 
-                  <div className="form-group">
-                    <input
-                      type="text"
-                      placeholder="Material Name (e.g. PET Plastic)"
-                      value={mat.name}
-                      onChange={(e) =>
-                        handleMaterialChange(index, "name", e.target.value)
-                      }
-                    />
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group col">
-                      <label>Weight (kg) *</label>
-                      <input
-                        type="number"
-                        min="0.001"
-                        step="0.001"
-                        placeholder="e.g. 0.25"
-                        value={mat.weight}
-                        onChange={(e) =>
-                          handleMaterialChange(index, "weight", e.target.value)
-                        }
-                      />
-                    </div>
-
-                    <div className="form-group col">
-                      <label>Recyclability Index (0-100) *</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        placeholder="e.g. 85"
-                        value={mat.recyclabilityIndex}
-                        onChange={(e) =>
-                          handleMaterialChange(
-                            index,
-                            "recyclabilityIndex",
-                            e.target.value
-                          )
-                        }
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Validation Errors Banner */}
-            {validationErrors.length > 0 && (
-              <div className="error-banner">
-                <strong>Please fix the following errors:</strong>
-                <ul>
-                  {validationErrors.map((err, i) => (
-                    <li key={i}>{err}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* API Calculation Error Alert */}
-            {error && <div className="error-banner">{error}</div>}
-
-            <button
-              type="submit"
-              className="btn-primary btn-submit"
-              disabled={loading}
-            >
-              {loading ? "Calculating..." : "Calculate Recyclability Score"}
-            </button>
-          </form>
-        </section>
-
-        {/* Right Side: Score Results Display & Save Section */}
-        <section className="card result-card">
-          <h2>Recyclability Assessment</h2>
-
-          {loading ? (
-            <div className="loading-container">
-              <div className="spinner"></div>
-              <p>Calculating sustainability score from backend engine...</p>
-            </div>
-          ) : scoreResult ? (
-            <div className="results-container">
-              {/* Overall Score Badge */}
-              <div
-                className={`score-badge-card grade-${scoreResult.grade?.toLowerCase()}`}
-              >
-                <div className="score-number">{scoreResult.finalScore}%</div>
-                <div className="score-details">
-                  <span className="grade-pill">Grade {scoreResult.grade}</span>
-                  <span className="rating-text">{scoreResult.rating}</span>
-                </div>
-              </div>
-
-              {/* Score Breakdown Table */}
-              <div className="breakdown-section">
-                <h3>Score Breakdown</h3>
-                <div className="breakdown-list">
-                  <div className="breakdown-item">
-                    <span>Base Weighted Score</span>
-                    <strong>{scoreResult.baseWeightedScore}%</strong>
-                  </div>
-                  <div className="breakdown-item penalty">
-                    <span>Mixed Material Penalty</span>
-                    <strong>-{scoreResult.penalties?.mixedMaterialPenalty} pts</strong>
-                  </div>
-                  <div className="breakdown-item penalty">
-                    <span>Contamination Penalty</span>
-                    <strong>-{scoreResult.penalties?.contaminationPenalty} pts</strong>
-                  </div>
-                  <div className="breakdown-item total-penalty">
-                    <span>Total Penalty Deductions</span>
-                    <strong>-{scoreResult.penalties?.totalPenalty} pts</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Material Percentages Table */}
-              {scoreResult.materialBreakdown &&
-                scoreResult.materialBreakdown.length > 0 && (
-                  <div className="breakdown-section">
-                    <h3>Material Contribution Analysis</h3>
-                    <table className="material-table">
-                      <thead>
-                        <tr>
-                          <th>Material</th>
-                          <th>Weight</th>
-                          <th>Share</th>
-                          <th>Index</th>
-                          <th>Points</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scoreResult.materialBreakdown.map((item, idx) => (
-                          <tr key={idx}>
-                            <td>{item.name}</td>
-                            <td>{item.weight} kg</td>
-                            <td>{item.weightPercentage}%</td>
-                            <td>{item.recyclabilityIndex}/100</td>
-                            <td>+{item.contribution}</td>
-                          </tr>
+                    <div className="materials-summary">
+                      <strong>Materials ({product.materials?.length || 0}):</strong>
+                      <ul className="material-tags-list">
+                        {product.materials?.map((mat, i) => (
+                          <li key={i}>
+                            <span>{mat.name}</span>
+                            <span className="mat-weight">{mat.weight} kg</span>
+                          </li>
                         ))}
-                      </tbody>
-                    </table>
+                      </ul>
+                    </div>
+
+                    <div className="product-card-footer">
+                      <span>Total Weight: <strong>{totalWeight.toFixed(3)} kg</strong></span>
+                      <button
+                        className="btn-secondary btn-sm"
+                        onClick={() => setSelectedProduct(product)}
+                      >
+                        View Details
+                      </button>
+                    </div>
                   </div>
-                )}
-
-              {/* Save Product Action Section */}
-              <div className="save-action-section">
-                {saveSuccess && (
-                  <div className="success-banner">{saveSuccess}</div>
-                )}
-                {saveError && <div className="error-banner">{saveError}</div>}
-
-                <button
-                  type="button"
-                  className="btn-success btn-save"
-                  disabled={saving || isSaved}
-                  onClick={handleSaveProduct}
-                >
-                  {saving
-                    ? "Saving..."
-                    : isSaved
-                    ? "Product Saved ✓"
-                    : "Save Product"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="placeholder-container">
-              <div className="placeholder-icon">🌱</div>
-              <p>
-                Fill out the product specifications and materials form, then
-                click <strong>"Calculate Recyclability Score"</strong> to view
-                the dynamic sustainability report.
-              </p>
+                );
+              })}
             </div>
           )}
         </section>
-      </main>
+      )}
 
-      {/* Bottom Section: Saved Products History */}
-      <section className="saved-products-section">
-        <div className="section-header">
-          <h2>Saved Products ({products.length})</h2>
-          <button
-            type="button"
-            className="btn-secondary btn-sm"
-            onClick={loadProducts}
-            disabled={productsLoading}
-          >
-            {productsLoading ? "Refreshing..." : "Refresh Products"}
-          </button>
-        </div>
+      {activeTab === "recommendations" && (
+        <RecommendationsView
+          products={products}
+          currentScoreResult={scoreResult}
+          onApplyAlternative={(rec) => {
+            setSimulationPreset({
+              targetMaterialName: rec.currentMaterial,
+              alternativeMaterialName: rec.alternativeMaterial
+            });
+            setActiveTab("whatif");
+          }}
+        />
+      )}
 
-        {productsError && (
-          <div className="error-banner">{productsError}</div>
-        )}
+      {activeTab === "whatif" && (
+        <WhatIfSimulationView
+          products={products}
+          simulationPreset={simulationPreset}
+          onProductSaved={loadProducts}
+        />
+      )}
 
-        {productsLoading ? (
-          <div className="loading-container">
-            <div className="spinner"></div>
-            <p>Loading saved products from database...</p>
-          </div>
-        ) : products.length === 0 ? (
-          <div className="placeholder-container">
-            <p>No saved products yet.</p>
-          </div>
-        ) : (
-          <div className="products-grid">
-            {products.map((product) => {
-              const id = product._id || product.id;
-              const totalWeight = product.materials
-                ? product.materials.reduce(
-                    (sum, m) => sum + (Number(m.weight) || 0),
-                    0
-                  )
-                : 0;
+      {activeTab === "compare" && (
+        <ProductComparisonView products={products} />
+      )}
 
-              return (
-                <div key={id} className="card product-card">
-                  <div className="product-card-header">
-                    <div>
-                      <h3 className="product-name">{product.name}</h3>
-                      <span className="category-tag">{product.category}</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn-danger-text"
-                      disabled={deletingProductId === id}
-                      onClick={() => handleDeleteProduct(id)}
-                    >
-                      {deletingProductId === id ? "Deleting..." : "Delete"}
-                    </button>
-                  </div>
+      {/* Product Detail Modal */}
+      {selectedProduct && (
+        <ProductDetailModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onRefresh={loadProducts}
+        />
+      )}
 
-                  {product.description && (
-                    <p className="product-desc">{product.description}</p>
-                  )}
-
-                  <div className="materials-summary">
-                    <strong>Materials ({product.materials?.length || 0}):</strong>
-                    <ul className="material-tags-list">
-                      {product.materials?.map((mat, i) => (
-                        <li key={i}>
-                          <span>{mat.name}</span>
-                          <span className="mat-weight">{mat.weight} kg</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div className="product-card-footer">
-                    <span>Total Material Weight:</span>
-                    <strong>{totalWeight.toFixed(3)} kg</strong>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+      {/* Auth Modal */}
+      {authModalOpen && (
+        <AuthModal
+          onClose={() => setAuthModalOpen(false)}
+          onAuthSuccess={(user) => setCurrentUser(user)}
+        />
+      )}
     </div>
   );
 }
