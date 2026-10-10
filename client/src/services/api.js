@@ -159,3 +159,59 @@ export async function getProductScore(id) {
   return await parseJsonResponse(response);
 }
 
+const MATERIALS_API_BASE_URL = '/api/materials';
+
+/**
+ * Retrieves all materials from the Material Knowledge Base.
+ * Route: GET /api/materials
+ *
+ * @returns {Promise<Object>} Object containing materials array and count
+ */
+export async function getMaterials() {
+  const response = await fetch(MATERIALS_API_BASE_URL, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  return await parseJsonResponse(response);
+}
+
+/**
+ * Retrieves a single material by ID from the Material Knowledge Base.
+ * Route: GET /api/materials/:id
+ *
+ * @param {string} id - MongoDB ObjectId string
+ * @returns {Promise<Object>} Material document object
+ */
+export async function getMaterialById(id) {
+  const response = await fetch(`${MATERIALS_API_BASE_URL}/${id}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  return await parseJsonResponse(response);
+}
+
+/**
+ * Retrieves a single material by name from the Material Knowledge Base.
+ * Route: GET /api/materials/name/:name
+ *
+ * @param {string} name - Material name string
+ * @returns {Promise<Object>} Material document object
+ */
+export async function getMaterialByName(name) {
+  const response = await fetch(`${MATERIALS_API_BASE_URL}/name/${encodeURIComponent(name)}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    }
+  });
+
+  return await parseJsonResponse(response);
+}
+
+

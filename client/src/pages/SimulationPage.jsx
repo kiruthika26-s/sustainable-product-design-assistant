@@ -12,6 +12,14 @@ import {
  * category classifications, and eco-design guidance.
  */
 const MATERIAL_CATALOG = {
+  PET: {
+    index: 85,
+    category: "Plastics",
+    description:
+      "Widely collected in municipal curbside recycling; high circular demand.",
+    ecoTip:
+      "Great circular alternative for transparent rigid containers and bottles.",
+  },
   "PET (Plastic)": {
     index: 85,
     category: "Plastics",
@@ -19,6 +27,14 @@ const MATERIAL_CATALOG = {
       "Widely collected in municipal curbside recycling; high circular demand.",
     ecoTip:
       "Great circular alternative for transparent rigid containers and bottles.",
+  },
+  HDPE: {
+    index: 80,
+    category: "Plastics",
+    description:
+      "Easily sorted and reprocessed with established post-consumer markets.",
+    ecoTip:
+      "Recommended for opaque bottles, caps, and sturdy packaging components.",
   },
   "HDPE (Plastic)": {
     index: 80,
@@ -28,31 +44,61 @@ const MATERIAL_CATALOG = {
     ecoTip:
       "Recommended for opaque bottles, caps, and sturdy packaging components.",
   },
-  "PP (Polypropylene)": {
-    index: 70,
+  LDPE: {
+    index: null,
     category: "Plastics",
     description:
-      "Rapidly expanding recycling programs; high thermal and chemical resistance.",
+      "Flexible film; curbside recovery is limited, index configuration pending municipal qualification.",
+    ecoTip: "Consider corrugated cardboard or molded pulp cushioning instead.",
+  },
+  PP: {
+    index: null,
+    category: "Plastics",
+    description:
+      "Rapidly expanding recycling programs; high thermal and chemical resistance; index configuration pending.",
     ecoTip:
       "Excellent replacement for single-use polystyrene and flexible multi-layer plastics.",
   },
-  "LDPE (Plastic)": {
-    index: 50,
-    category: "Plastics",
-    description:
-      "Flexible film; curbside recovery is limited, often requires store drop-off.",
-    ecoTip: "Consider corrugated cardboard or molded pulp cushioning instead.",
-  },
-  "PVC (Plastic)": {
-    index: 15,
+  PVC: {
+    index: 30,
     category: "Plastics",
     description:
       "Severe recycling barrier; chlorine content contaminates standard recycling streams.",
     ecoTip:
-      "Priority phase-out: switch to PET, HDPE, or aluminum wherever possible.",
+      "Priority phase-out: switch to PET, HDPE, or Aluminium wherever possible.",
+  },
+  "PVC (Plastic)": {
+    index: 30,
+    category: "Plastics",
+    description:
+      "Severe recycling barrier; chlorine content contaminates standard recycling streams.",
+    ecoTip:
+      "Priority phase-out: switch to PET, HDPE, or Aluminium wherever possible.",
+  },
+  PS: {
+    index: null,
+    category: "Plastics",
+    description:
+      "Polystyrene packaging; recyclability index configuration pending.",
+    ecoTip: "Consider switching to recyclable mono-materials.",
+  },
+  ABS: {
+    index: null,
+    category: "Plastics",
+    description:
+      "Engineering thermoplastic for durable housings; recyclability index configuration pending.",
+    ecoTip: "Design for modular tool-free disassembly.",
+  },
+  Aluminium: {
+    index: 98,
+    category: "Metals",
+    description:
+      "Infinitely recyclable with 95% energy savings compared to virgin smelting.",
+    ecoTip:
+      "Gold standard for circular lifecycle design and lightweight structural parts.",
   },
   Aluminum: {
-    index: 95,
+    index: 98,
     category: "Metals",
     description:
       "Infinitely recyclable with 95% energy savings compared to virgin smelting.",
@@ -60,60 +106,57 @@ const MATERIAL_CATALOG = {
       "Gold standard for circular lifecycle design and lightweight structural parts.",
   },
   Steel: {
-    index: 90,
+    index: null,
     category: "Metals",
     description:
-      "Magnetic separation makes recovery highly efficient; globally established recycling.",
+      "Magnetic separation makes recovery highly efficient; recyclability index configuration pending.",
     ecoTip:
       "Durable, high-strength choice for long-life products and protective housings.",
   },
+  "Stainless Steel": {
+    index: null,
+    category: "Metals",
+    description:
+      "High chromium/nickel alloy; recyclability index configuration pending.",
+    ecoTip: "Exceptional corrosion resistance and durability.",
+  },
+  Copper: {
+    index: null,
+    category: "Metals",
+    description:
+      "High conductivity metal; recyclability index configuration pending.",
+    ecoTip: "Highly valuable for closed-loop electrical recycling.",
+  },
   Glass: {
-    index: 85,
-    category: "Glass & Minerals",
+    index: 95,
+    category: "Glass",
     description:
       "100% infinitely recyclable without chemical degradation or downcycling.",
     ecoTip:
       "Ideal for premium, non-reactive containers; evaluate transit weight vs. recyclability.",
   },
-  "Cardboard / Paper": {
-    index: 80,
-    category: "Fiber & Pulp",
+  Paper: {
+    index: 90,
+    category: "Paper & Cardboard",
     description:
       "Renewable, widely collected, biodegradable, and recyclable up to 5-7 cycles.",
     ecoTip:
       "Best eco-friendly alternative for transport packaging and outer cartons.",
   },
-  "Bioplastic (PLA)": {
-    index: 40,
-    category: "Bio-Polymers",
+  Cardboard: {
+    index: null,
+    category: "Paper & Cardboard",
     description:
-      "Requires industrial composting (58°C+); often discarded as plastic contaminant.",
-    ecoTip:
-      "Only choose if municipal industrial composting collection is accessible to end users.",
+      "Corrugated bulk fiber packaging; recyclability index configuration pending.",
+    ecoTip: "Widely recycled bulk stream.",
   },
-  "Wood / Bamboo": {
-    index: 60,
-    category: "Renewable Organics",
+  Wood: {
+    index: null,
+    category: "Bio-Based & Wood",
     description:
-      "Natural carbon sink, compostable, and renewable when sustainably sourced (FSC).",
+      "Natural carbon sink and renewable organic material; recyclability index configuration pending.",
     ecoTip:
       "Great alternative for structural inserts and aesthetic product shells.",
-  },
-  Rubber: {
-    index: 30,
-    category: "Elastomers",
-    description:
-      "Cross-linked vulcanization prevents melting; typically downcycled or incinerated.",
-    ecoTip:
-      "Investigate recyclable Thermoplastic Elastomers (TPE) or natural latex substitutes.",
-  },
-  Other: {
-    index: 20,
-    category: "Mixed Materials",
-    description:
-      "Unidentified blends or multi-layer composites with near-zero recovery options.",
-    ecoTip:
-      "Standardize on single-material (monomaterial) design to facilitate end-of-life sorting.",
   },
 };
 
@@ -123,27 +166,27 @@ const MATERIAL_OPTIONS = Object.keys(MATERIAL_CATALOG);
 const PRESET_SCENARIOS = [
   {
     title: "Phase out PVC",
-    current: "PVC (Plastic)",
-    alternative: "PET (Plastic)",
+    current: "PVC",
+    alternative: "PET",
     label: "PVC ➔ PET",
   },
   {
     title: "Metal Upgrade",
-    current: "PP (Polypropylene)",
-    alternative: "Aluminum",
-    label: "PP ➔ Aluminum",
+    current: "PET",
+    alternative: "Aluminium",
+    label: "PET ➔ Aluminium",
   },
   {
     title: "Paper Packaging",
-    current: "LDPE (Plastic)",
-    alternative: "Cardboard / Paper",
-    label: "LDPE ➔ Cardboard",
+    current: "HDPE",
+    alternative: "Paper",
+    label: "HDPE ➔ Paper",
   },
   {
-    title: "Cautionary Swap",
-    current: "HDPE (Plastic)",
-    alternative: "Bioplastic (PLA)",
-    label: "HDPE ➔ Bioplastic",
+    title: "Glass Upgrade",
+    current: "PET",
+    alternative: "Glass",
+    label: "PET ➔ Glass",
   },
 ];
 
@@ -173,8 +216,8 @@ function getRatingMeta(score) {
  */
 function SimulationPage({
   initialProductId,
-  initialCurrentMaterial = "PVC (Plastic)",
-  initialAlternativeMaterial = "Aluminum",
+  initialCurrentMaterial = "PVC",
+  initialAlternativeMaterial = "Aluminium",
   onApplySimulation,
 }) {
   // Material selections
@@ -186,20 +229,28 @@ function SimulationPage({
   );
 
   // Recyclability Indices (pre-populated from catalog, user editable)
-  const [currentIndex, setCurrentIndex] = useState(
-    MATERIAL_CATALOG[initialCurrentMaterial]?.index ?? 15,
-  );
-  const [alternativeIndex, setAlternativeIndex] = useState(
-    MATERIAL_CATALOG[initialAlternativeMaterial]?.index ?? 95,
-  );
+  const initialCurIdx = MATERIAL_CATALOG[initialCurrentMaterial]?.index;
+  const initialCurResolved =
+    initialCurIdx !== null && initialCurIdx !== undefined ? initialCurIdx : "";
+  const [currentIndex, setCurrentIndex] = useState(initialCurResolved);
+
+  const initialAltIdx = MATERIAL_CATALOG[initialAlternativeMaterial]?.index;
+  const initialAltResolved =
+    initialAltIdx !== null && initialAltIdx !== undefined ? initialAltIdx : "";
+  const [alternativeIndex, setAlternativeIndex] = useState(initialAltResolved);
 
   // Component notes or part name (e.g. "Main Body", "Container Lid")
   const [componentPartName, setComponentPartName] = useState(
     "Main Housing / Body",
   );
 
-  // Simulation result state
+  // Simulation result & error states
   const [simulationResult, setSimulationResult] = useState(null);
+  const [simulationError, setSimulationError] = useState(
+    initialCurResolved === "" || initialAltResolved === ""
+      ? "This material does not have a configured recyclability index and cannot be evaluated."
+      : "",
+  );
   // Saved products loaded from MongoDB
   const [products, setProducts] = useState([]);
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -219,6 +270,15 @@ function SimulationPage({
   const [updatingProduct, setUpdatingProduct] = useState(false);
   const [updateProductSuccess, setUpdateProductSuccess] = useState("");
   const [updateProductError, setUpdateProductError] = useState("");
+
+  // Material configured status check - accepts index only when configured in MATERIAL_CATALOG
+  const isCurrentConfigured =
+    MATERIAL_CATALOG[currentMaterial]?.index !== null &&
+    MATERIAL_CATALOG[currentMaterial]?.index !== undefined;
+
+  const isAlternativeConfigured =
+    MATERIAL_CATALOG[alternativeMaterial]?.index !== null &&
+    MATERIAL_CATALOG[alternativeMaterial]?.index !== undefined;
 
   // Load saved products from MongoDB when the page opens
   useEffect(() => {
@@ -255,20 +315,35 @@ function SimulationPage({
         matName.toLowerCase().includes(k.toLowerCase()),
       );
 
-    if (catalogMatch) {
-      setCurrentMaterial(catalogMatch);
-      setCurrentIndex(
-        mat.recyclabilityIndex !== undefined && mat.recyclabilityIndex !== null
-          ? Number(mat.recyclabilityIndex)
-          : MATERIAL_CATALOG[catalogMatch].index,
-      );
+    const chosenMaterial = catalogMatch || matName || "Custom Material";
+    setCurrentMaterial(chosenMaterial);
+
+    const catIdx = MATERIAL_CATALOG[chosenMaterial]?.index;
+    const resolvedIndex =
+      catIdx !== null && catIdx !== undefined ? catIdx : "";
+
+    setCurrentIndex(resolvedIndex);
+    const isCurConf = catIdx !== null && catIdx !== undefined;
+    const isAltConf =
+      MATERIAL_CATALOG[alternativeMaterial]?.index !== null &&
+      MATERIAL_CATALOG[alternativeMaterial]?.index !== undefined;
+
+    if (!isCurConf || resolvedIndex === "") {
+      setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+    } else if (
+      !isAltConf ||
+      alternativeIndex === "" ||
+      alternativeIndex === null ||
+      alternativeIndex === undefined ||
+      isNaN(Number(alternativeIndex))
+    ) {
+      setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
     } else {
-      setCurrentMaterial(matName || "Custom Material");
-      setCurrentIndex(
-        mat.recyclabilityIndex !== undefined && mat.recyclabilityIndex !== null
-          ? Number(mat.recyclabilityIndex)
-          : 50,
-      );
+      setSimulationError("");
     }
   };
 
@@ -377,13 +452,13 @@ function SimulationPage({
     if (!initialProductId) {
       if (initialCurrentMaterial) {
         setCurrentMaterial(initialCurrentMaterial);
-        const curIdx = MATERIAL_CATALOG[initialCurrentMaterial]?.index ?? 50;
-        setCurrentIndex(curIdx);
+        const curIdx = MATERIAL_CATALOG[initialCurrentMaterial]?.index;
+        setCurrentIndex(curIdx !== null && curIdx !== undefined ? curIdx : "");
       }
       if (initialAlternativeMaterial) {
         setAlternativeMaterial(initialAlternativeMaterial);
-        const altIdx = MATERIAL_CATALOG[initialAlternativeMaterial]?.index ?? 50;
-        setAlternativeIndex(altIdx);
+        const altIdx = MATERIAL_CATALOG[initialAlternativeMaterial]?.index;
+        setAlternativeIndex(altIdx !== null && altIdx !== undefined ? altIdx : "");
       }
     }
   }, [initialProductId, initialCurrentMaterial, initialAlternativeMaterial]);
@@ -394,28 +469,83 @@ function SimulationPage({
     const prodId = selectedProduct._id || selectedProduct.id;
     if (!prodId) return;
 
+    const isCurConfiguredForSave =
+      MATERIAL_CATALOG[currentMaterial]?.index !== null &&
+      MATERIAL_CATALOG[currentMaterial]?.index !== undefined;
+
+    const isAltConfiguredForSave =
+      MATERIAL_CATALOG[simulationResult.alternativeMaterial || alternativeMaterial]?.index !== null &&
+      MATERIAL_CATALOG[simulationResult.alternativeMaterial || alternativeMaterial]?.index !== undefined;
+
+    const hasValidCurrent =
+      isCurConfiguredForSave &&
+      currentIndex !== "" &&
+      currentIndex !== null &&
+      currentIndex !== undefined &&
+      !isNaN(Number(currentIndex));
+    const hasValidAlt =
+      isAltConfiguredForSave &&
+      alternativeIndex !== "" &&
+      alternativeIndex !== null &&
+      alternativeIndex !== undefined &&
+      !isNaN(Number(alternativeIndex));
+
+    if (!hasValidCurrent || !hasValidAlt) {
+      setSimulationError(
+        "This material does not have a configured recyclability index and cannot be evaluated."
+      );
+      setUpdateProductError(
+        "This material does not have a configured recyclability index and cannot be evaluated."
+      );
+      setUpdatingProduct(false);
+      return;
+    }
+
+    const updatedMaterials = (selectedProduct.materials || []).map(
+      (mat, idx) => {
+        if (idx === selectedMaterialIndex) {
+          return {
+            name: simulationResult.alternativeMaterial,
+            recyclabilityIndex: simulationResult.alternativeIndex,
+            weight: Number(mat.weight) || 0,
+          };
+        }
+        const matName = (mat.name || "").trim();
+        const catalogMatch =
+          Object.keys(MATERIAL_CATALOG).find(
+            (k) => k.toLowerCase() === matName.toLowerCase(),
+          ) ||
+          Object.keys(MATERIAL_CATALOG).find((k) =>
+            matName.toLowerCase().includes(k.toLowerCase()),
+          );
+        const catKey = catalogMatch || matName;
+        const catIdx = MATERIAL_CATALOG[catKey]?.index;
+        const canonicalIdx =
+          catIdx !== null && catIdx !== undefined ? catIdx : null;
+        return {
+          name: mat.name,
+          recyclabilityIndex: canonicalIdx,
+          weight: Number(mat.weight) || 0,
+        };
+      },
+    );
+
+    const hasUnconfigured = updatedMaterials.some(
+      (m) => m.recyclabilityIndex === null || isNaN(m.recyclabilityIndex),
+    );
+    if (hasUnconfigured) {
+      setUpdateProductError(
+        "This material does not have a configured recyclability index and cannot be evaluated.",
+      );
+      setUpdatingProduct(false);
+      return;
+    }
+
     setUpdatingProduct(true);
     setUpdateProductSuccess("");
     setUpdateProductError("");
 
     try {
-      const updatedMaterials = (selectedProduct.materials || []).map(
-        (mat, idx) => {
-          if (idx === selectedMaterialIndex) {
-            return {
-              name: simulationResult.alternativeMaterial,
-              recyclabilityIndex: simulationResult.alternativeIndex,
-              weight: Number(mat.weight) || 0,
-            };
-          }
-          return {
-            name: mat.name,
-            recyclabilityIndex: Number(mat.recyclabilityIndex) || 0,
-            weight: Number(mat.weight) || 0,
-          };
-        },
-      );
-
       const updatedPayload = {
         name: selectedProduct.name,
         category: selectedProduct.category,
@@ -456,36 +586,126 @@ function SimulationPage({
   const handleCurrentMaterialChange = (e) => {
     const selected = e.target.value;
     setCurrentMaterial(selected);
-    const defaultIdx = MATERIAL_CATALOG[selected]?.index ?? 50;
-    setCurrentIndex(defaultIdx);
+    const catIdx = MATERIAL_CATALOG[selected]?.index;
+    const resolvedIdx = catIdx !== null && catIdx !== undefined ? catIdx : "";
+    setCurrentIndex(resolvedIdx);
+    const isCurConf = catIdx !== null && catIdx !== undefined;
+    const isAltConf =
+      MATERIAL_CATALOG[alternativeMaterial]?.index !== null &&
+      MATERIAL_CATALOG[alternativeMaterial]?.index !== undefined;
+
+    if (!isCurConf || resolvedIdx === "") {
+      setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+    } else if (
+      !isAltConf ||
+      alternativeIndex === "" ||
+      alternativeIndex === null ||
+      alternativeIndex === undefined ||
+      isNaN(Number(alternativeIndex))
+    ) {
+      setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+    } else {
+      setSimulationError("");
+    }
   };
 
   // Handle alternative material dropdown change
   const handleAlternativeMaterialChange = (e) => {
     const selected = e.target.value;
     setAlternativeMaterial(selected);
-    const defaultIdx = MATERIAL_CATALOG[selected]?.index ?? 50;
-    setAlternativeIndex(defaultIdx);
+    const catIdx = MATERIAL_CATALOG[selected]?.index;
+    const resolvedIdx = catIdx !== null && catIdx !== undefined ? catIdx : "";
+    setAlternativeIndex(resolvedIdx);
+    const isAltConf = catIdx !== null && catIdx !== undefined;
+    const isCurConf =
+      MATERIAL_CATALOG[currentMaterial]?.index !== null &&
+      MATERIAL_CATALOG[currentMaterial]?.index !== undefined;
+
+    if (!isAltConf || resolvedIdx === "") {
+      setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+    } else if (
+      !isCurConf ||
+      currentIndex === "" ||
+      currentIndex === null ||
+      currentIndex === undefined ||
+      isNaN(Number(currentIndex))
+    ) {
+      setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+    } else {
+      setSimulationError("");
+    }
   };
 
   // Quick preset scenario loader
   const handleApplyPreset = (preset) => {
     setCurrentMaterial(preset.current);
-    const curIdx = MATERIAL_CATALOG[preset.current]?.index ?? 50;
+    const curCatIdx = MATERIAL_CATALOG[preset.current]?.index;
+    const curIdx = curCatIdx !== null && curCatIdx !== undefined ? curCatIdx : "";
     setCurrentIndex(curIdx);
 
     setAlternativeMaterial(preset.alternative);
-    const altIdx = MATERIAL_CATALOG[preset.alternative]?.index ?? 50;
+    const altCatIdx = MATERIAL_CATALOG[preset.alternative]?.index;
+    const altIdx = altCatIdx !== null && altCatIdx !== undefined ? altCatIdx : "";
     setAlternativeIndex(altIdx);
 
+    const isCurConf = curCatIdx !== null && curCatIdx !== undefined;
+    const isAltConf = altCatIdx !== null && altCatIdx !== undefined;
+
+    if (!isCurConf || !isAltConf || curIdx === "" || altIdx === "") {
+      setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+      return;
+    }
+
+    setSimulationError("");
     // Auto trigger simulation for smooth user experience
     computeSimulation(preset.current, curIdx, preset.alternative, altIdx);
   };
 
   // Compute simulation values on the frontend and call backend API for product score if applicable
   const computeSimulation = async (currMat, currIdx, altMat, altIdx) => {
-    const numCurrent = Math.max(0, Math.min(100, Number(currIdx) || 0));
-    const numAlternative = Math.max(0, Math.min(100, Number(altIdx) || 0));
+    const isCurConfiguredInCompute =
+      MATERIAL_CATALOG[currMat]?.index !== null &&
+      MATERIAL_CATALOG[currMat]?.index !== undefined;
+
+    const isAltConfiguredInCompute =
+      MATERIAL_CATALOG[altMat]?.index !== null &&
+      MATERIAL_CATALOG[altMat]?.index !== undefined;
+
+    const hasValidCurrent =
+      isCurConfiguredInCompute &&
+      currIdx !== "" &&
+      currIdx !== null &&
+      currIdx !== undefined &&
+      !isNaN(Number(currIdx));
+    const hasValidAlt =
+      isAltConfiguredInCompute &&
+      altIdx !== "" &&
+      altIdx !== null &&
+      altIdx !== undefined &&
+      !isNaN(Number(altIdx));
+
+    if (!hasValidCurrent || !hasValidAlt) {
+      setSimulationError(
+        "This material does not have a configured recyclability index and cannot be evaluated."
+      );
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+      return;
+    }
+
+    setSimulationError("");
+    const numCurrent = Math.max(0, Math.min(100, Number(currIdx)));
+    const numAlternative = Math.max(0, Math.min(100, Number(altIdx)));
     const scoreDiff = numAlternative - numCurrent;
 
     let impactStatus = "neutral";
@@ -535,12 +755,34 @@ function SimulationPage({
               weight: Number(mat.weight) || 0,
             };
           }
+          const matName = (mat.name || "").trim();
+          const catalogMatch =
+            Object.keys(MATERIAL_CATALOG).find(
+              (k) => k.toLowerCase() === matName.toLowerCase(),
+            ) ||
+            Object.keys(MATERIAL_CATALOG).find((k) =>
+              matName.toLowerCase().includes(k.toLowerCase()),
+            );
+          const catKey = catalogMatch || matName;
+          const catIdx = MATERIAL_CATALOG[catKey]?.index;
+          const canonicalIdx =
+            catIdx !== null && catIdx !== undefined ? catIdx : null;
           return {
             name: mat.name,
-            recyclabilityIndex: Number(mat.recyclabilityIndex) || 0,
+            recyclabilityIndex: canonicalIdx,
             weight: Number(mat.weight) || 0,
           };
         });
+
+        const hasUnconfiguredMat = updatedMaterials.some(
+          (m) => m.recyclabilityIndex === null || isNaN(m.recyclabilityIndex)
+        );
+
+        if (hasUnconfiguredMat) {
+          setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+          setSimulatedProductScore(null);
+          return;
+        }
 
         const simulatedPayload = {
           name: selectedProduct.name,
@@ -568,6 +810,29 @@ function SimulationPage({
   // "Simulate" Button Click Handler
   const handleSimulate = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
+    const hasValidCurrent =
+      isCurrentConfigured &&
+      currentIndex !== "" &&
+      currentIndex !== null &&
+      currentIndex !== undefined &&
+      !isNaN(Number(currentIndex));
+    const hasValidAlt =
+      isAlternativeConfigured &&
+      alternativeIndex !== "" &&
+      alternativeIndex !== null &&
+      alternativeIndex !== undefined &&
+      !isNaN(Number(alternativeIndex));
+
+    if (!hasValidCurrent || !hasValidAlt) {
+      setSimulationError(
+        "This material does not have a configured recyclability index and cannot be evaluated."
+      );
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+      return;
+    }
+
+    setSimulationError("");
     await computeSimulation(
       currentMaterial,
       currentIndex,
@@ -584,18 +849,25 @@ function SimulationPage({
       selectedProduct.materials.length > 0
     ) {
       applyMaterialSelection(selectedProduct.materials[0], 0);
-      setAlternativeMaterial("Aluminum");
-      setAlternativeIndex(MATERIAL_CATALOG["Aluminum"]?.index ?? 95);
+      setAlternativeMaterial("Aluminium");
+      const altCatIdx = MATERIAL_CATALOG["Aluminium"]?.index;
+      const altIdx = altCatIdx !== null && altCatIdx !== undefined ? altCatIdx : "";
+      setAlternativeIndex(altIdx);
       setSimulationResult(null);
       setSimulatedProductScore(null);
     } else {
-      setCurrentMaterial("PVC (Plastic)");
-      setCurrentIndex(MATERIAL_CATALOG["PVC (Plastic)"]?.index ?? 15);
-      setAlternativeMaterial("Aluminum");
-      setAlternativeIndex(MATERIAL_CATALOG["Aluminum"]?.index ?? 95);
+      setCurrentMaterial("PVC");
+      const curCatIdx = MATERIAL_CATALOG["PVC"]?.index;
+      const curIdx = curCatIdx !== null && curCatIdx !== undefined ? curCatIdx : "";
+      setCurrentIndex(curIdx);
+      setAlternativeMaterial("Aluminium");
+      const altCatIdx = MATERIAL_CATALOG["Aluminium"]?.index;
+      const altIdx = altCatIdx !== null && altCatIdx !== undefined ? altCatIdx : "";
+      setAlternativeIndex(altIdx);
       setComponentPartName("Main Housing / Body");
       setSimulationResult(null);
       setSimulatedProductScore(null);
+      setSimulationError("");
     }
   };
 
@@ -610,6 +882,34 @@ function SimulationPage({
     setAlternativeMaterial(prevCurrentMat);
     setAlternativeIndex(prevCurrentIdx);
 
+    const isNewCurConfigured =
+      MATERIAL_CATALOG[alternativeMaterial]?.index !== null &&
+      MATERIAL_CATALOG[alternativeMaterial]?.index !== undefined;
+    const isNewAltConfigured =
+      MATERIAL_CATALOG[prevCurrentMat]?.index !== null &&
+      MATERIAL_CATALOG[prevCurrentMat]?.index !== undefined;
+
+    const hasValidCurrent =
+      isNewCurConfigured &&
+      alternativeIndex !== "" &&
+      alternativeIndex !== null &&
+      alternativeIndex !== undefined &&
+      !isNaN(Number(alternativeIndex));
+    const hasValidAlt =
+      isNewAltConfigured &&
+      prevCurrentIdx !== "" &&
+      prevCurrentIdx !== null &&
+      prevCurrentIdx !== undefined &&
+      !isNaN(Number(prevCurrentIdx));
+
+    if (!hasValidCurrent || !hasValidAlt) {
+      setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+      setSimulationResult(null);
+      setSimulatedProductScore(null);
+      return;
+    }
+
+    setSimulationError("");
     if (simulationResult) {
       computeSimulation(
         alternativeMaterial,
@@ -852,6 +1152,28 @@ function SimulationPage({
           </div>
 
           <form onSubmit={handleSimulate}>
+            {simulationError && (
+              <div
+                className="error-banner"
+                role="alert"
+                style={{
+                  marginBottom: "16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  backgroundColor: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  color: "#991b1b",
+                  padding: "12px 16px",
+                  borderRadius: "8px",
+                  fontSize: "0.9rem",
+                }}
+              >
+                <span style={{ fontSize: "1.2rem" }}>⚠️</span>
+                <div>{simulationError}</div>
+              </div>
+            )}
+
             {/* Display Selected Product's Actual Materials & Allow Component Selection */}
             {selectedProduct && (
               <div
@@ -905,8 +1227,20 @@ function SimulationPage({
                   >
                     {selectedProduct.materials.map((mat, idx) => {
                       const isSelected = selectedMaterialIndex === idx;
-                      const matIdx = Number(mat.recyclabilityIndex) || 0;
-                      const ratingMeta = getRatingMeta(matIdx);
+                      const matName = (mat.name || "").trim();
+                      const catalogMatch =
+                        Object.keys(MATERIAL_CATALOG).find(
+                          (k) => k.toLowerCase() === matName.toLowerCase(),
+                        ) ||
+                        Object.keys(MATERIAL_CATALOG).find((k) =>
+                          matName.toLowerCase().includes(k.toLowerCase()),
+                        );
+                      const catKey = catalogMatch || matName;
+                      const catIdx = MATERIAL_CATALOG[catKey]?.index;
+                      const hasConfiguredIndex =
+                        catIdx !== null && catIdx !== undefined;
+                      const matIdx = hasConfiguredIndex ? catIdx : null;
+                      const ratingMeta = hasConfiguredIndex ? getRatingMeta(matIdx) : null;
 
                       return (
                         <div
@@ -983,20 +1317,26 @@ function SimulationPage({
                                 padding: "3px 8px",
                                 borderRadius: "10px",
                                 backgroundColor:
-                                  matIdx >= 80
-                                    ? "#dcfce7"
-                                    : matIdx >= 50
-                                      ? "#fef3c7"
-                                      : "#fee2e2",
+                                  !hasConfiguredIndex
+                                    ? "#fee2e2"
+                                    : matIdx >= 80
+                                      ? "#dcfce7"
+                                      : matIdx >= 50
+                                        ? "#fef3c7"
+                                        : "#fee2e2",
                                 color:
-                                  matIdx >= 80
-                                    ? "#166534"
-                                    : matIdx >= 50
-                                      ? "#92400e"
-                                      : "#991b1b",
+                                  !hasConfiguredIndex
+                                    ? "#991b1b"
+                                    : matIdx >= 80
+                                      ? "#166534"
+                                      : matIdx >= 50
+                                        ? "#92400e"
+                                        : "#991b1b",
                               }}
                             >
-                              Index: {matIdx} (Grade {ratingMeta.grade})
+                              {hasConfiguredIndex
+                                ? `Index: ${matIdx} (Grade ${ratingMeta.grade})`
+                                : "Index: Unavailable"}
                             </span>
                             {isSelected && (
                               <span
@@ -1116,10 +1456,43 @@ function SimulationPage({
                     min="0"
                     max="100"
                     step="1"
-                    value={currentIndex}
-                    onChange={(e) => setCurrentIndex(e.target.value)}
+                    placeholder="Unavailable"
+                    disabled={!isCurrentConfigured}
+                    value={currentIndex !== null && currentIndex !== undefined ? currentIndex : ""}
+                    onChange={(e) => {
+                      if (!isCurrentConfigured) return;
+                      const val = e.target.value;
+                      setCurrentIndex(val);
+                      if (val === "" || isNaN(Number(val))) {
+                        setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+                        setSimulationResult(null);
+                        setSimulatedProductScore(null);
+                      } else {
+                        const hasAltValid =
+                          isAlternativeConfigured &&
+                          alternativeIndex !== "" &&
+                          alternativeIndex !== null &&
+                          alternativeIndex !== undefined &&
+                          !isNaN(Number(alternativeIndex));
+                        if (!hasAltValid) {
+                          setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+                        } else {
+                          setSimulationError("");
+                        }
+                      }
+                    }}
+                    style={{
+                      cursor: !isCurrentConfigured ? "not-allowed" : undefined,
+                      backgroundColor: !isCurrentConfigured ? "#f1f5f9" : undefined,
+                      color: !isCurrentConfigured ? "#64748b" : undefined,
+                    }}
                     required
                   />
+                  {(!isCurrentConfigured || currentIndex === "" || currentIndex === null || currentIndex === undefined) && (
+                    <div style={{ marginTop: "4px", fontSize: "0.78rem", color: "#b91c1c", fontWeight: 600 }}>
+                      ⚠️ Index Unavailable
+                    </div>
+                  )}
                 </div>
 
                 <p
@@ -1203,10 +1576,43 @@ function SimulationPage({
                     min="0"
                     max="100"
                     step="1"
-                    value={alternativeIndex}
-                    onChange={(e) => setAlternativeIndex(e.target.value)}
+                    placeholder="Unavailable"
+                    disabled={!isAlternativeConfigured}
+                    value={alternativeIndex !== null && alternativeIndex !== undefined ? alternativeIndex : ""}
+                    onChange={(e) => {
+                      if (!isAlternativeConfigured) return;
+                      const val = e.target.value;
+                      setAlternativeIndex(val);
+                      if (val === "" || isNaN(Number(val))) {
+                        setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+                        setSimulationResult(null);
+                        setSimulatedProductScore(null);
+                      } else {
+                        const hasCurValid =
+                          isCurrentConfigured &&
+                          currentIndex !== "" &&
+                          currentIndex !== null &&
+                          currentIndex !== undefined &&
+                          !isNaN(Number(currentIndex));
+                        if (!hasCurValid) {
+                          setSimulationError("This material does not have a configured recyclability index and cannot be evaluated.");
+                        } else {
+                          setSimulationError("");
+                        }
+                      }
+                    }}
+                    style={{
+                      cursor: !isAlternativeConfigured ? "not-allowed" : undefined,
+                      backgroundColor: !isAlternativeConfigured ? "#f1f5f9" : undefined,
+                      color: !isAlternativeConfigured ? "#64748b" : undefined,
+                    }}
                     required
                   />
+                  {(!isAlternativeConfigured || alternativeIndex === "" || alternativeIndex === null || alternativeIndex === undefined) && (
+                    <div style={{ marginTop: "4px", fontSize: "0.78rem", color: "#b91c1c", fontWeight: 600 }}>
+                      ⚠️ Index Unavailable
+                    </div>
+                  )}
                 </div>
 
                 <p
@@ -1227,7 +1633,13 @@ function SimulationPage({
               <button
                 type="submit"
                 className="btn-primary"
-                disabled={simulating}
+                disabled={
+                  simulating ||
+                  !isCurrentConfigured ||
+                  !isAlternativeConfigured ||
+                  currentIndex === "" ||
+                  alternativeIndex === ""
+                }
                 style={{
                   flex: 1,
                   display: "flex",
@@ -1256,7 +1668,32 @@ function SimulationPage({
         <div className="card score-panel">
           <h2 className="section-title">2. Simulation Results</h2>
 
-          {!simulationResult ? (
+          {simulationError ? (
+            /* Simulation Error State */
+            <div
+              className="error-banner"
+              role="alert"
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                textAlign: "center",
+                gap: "10px",
+                padding: "28px 20px",
+                backgroundColor: "#fef2f2",
+                border: "1px solid #fecaca",
+                color: "#991b1b",
+                borderRadius: "8px",
+                margin: "12px 0",
+              }}
+            >
+              <span style={{ fontSize: "2rem" }}>⚠️</span>
+              <h3 style={{ margin: 0, color: "#991b1b" }}>Evaluation Blocked</h3>
+              <p style={{ margin: "4px 0 0 0", fontSize: "0.92rem", color: "#7f1d1d" }}>
+                {simulationError}
+              </p>
+            </div>
+          ) : !simulationResult ? (
             /* Empty State Placeholder */
             <div className="placeholder-container score-placeholder-empty">
               <div className="placeholder-icon">🌱</div>
@@ -1898,7 +2335,14 @@ function SimulationPage({
                     <button
                       type="button"
                       className="btn-success"
-                      disabled={updatingProduct}
+                      disabled={
+                        updatingProduct ||
+                        !simulationResult ||
+                        !isCurrentConfigured ||
+                        !isAlternativeConfigured ||
+                        currentIndex === "" ||
+                        alternativeIndex === ""
+                      }
                       onClick={handleSaveSimulationToProduct}
                       style={{
                         flex: 1,

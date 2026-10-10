@@ -7,7 +7,27 @@ import {
   deleteProduct,
   updateProduct,
   getProductScore,
+  getMaterials,
 } from "../services/api";
+
+// Standard Knowledge Base materials fallback
+const fallbackMaterials = [
+  { name: "PET", category: "Plastics", recyclabilityIndex: 85 },
+  { name: "HDPE", category: "Plastics", recyclabilityIndex: 80 },
+  { name: "LDPE", category: "Plastics", recyclabilityIndex: null },
+  { name: "PP", category: "Plastics", recyclabilityIndex: null },
+  { name: "PVC", category: "Plastics", recyclabilityIndex: 30 },
+  { name: "PS", category: "Plastics", recyclabilityIndex: null },
+  { name: "ABS", category: "Plastics", recyclabilityIndex: null },
+  { name: "Aluminium", category: "Metals", recyclabilityIndex: 98 },
+  { name: "Steel", category: "Metals", recyclabilityIndex: null },
+  { name: "Stainless Steel", category: "Metals", recyclabilityIndex: null },
+  { name: "Copper", category: "Metals", recyclabilityIndex: null },
+  { name: "Glass", category: "Glass", recyclabilityIndex: 95 },
+  { name: "Paper", category: "Paper & Cardboard", recyclabilityIndex: 90 },
+  { name: "Cardboard", category: "Paper & Cardboard", recyclabilityIndex: null },
+  { name: "Wood", category: "Bio-Based & Wood", recyclabilityIndex: null },
+];
 
 function ProductAnalysisPage({
   onNavigateToSimulation,
@@ -22,12 +42,17 @@ function ProductAnalysisPage({
     description: "",
   });
 
+  // Available Materials from Knowledge Base
+  const [availableMaterials, setAvailableMaterials] = useState([]);
+  const [materialsLoading, setMaterialsLoading] = useState(false);
+  const [materialsError, setMaterialsError] = useState(null);
+
   // Dynamic Materials List State
   const [materials, setMaterials] = useState([
     {
       id: 1,
       name: "",
-      type: "PET (Plastic)",
+      type: "PET",
       weight: "",
       recyclabilityIndex: 85,
     },
@@ -143,9 +168,35 @@ function ProductAnalysisPage({
     }
   };
 
-  // Load saved products when component mounts
+  // Load materials from Knowledge Base API
+  const loadMaterials = async () => {
+    setMaterialsLoading(true);
+    setMaterialsError(null);
+    try {
+      const response = await getMaterials();
+      if (response && response.success && Array.isArray(response.data) && response.data.length > 0) {
+        setAvailableMaterials(response.data);
+      } else {
+        setMaterialsError(
+          response?.error ||
+            "Unable to load Material Knowledge Base from server. Server-side validation is still required."
+        );
+      }
+    } catch (err) {
+      console.error("Failed to load materials from Knowledge Base:", err);
+      setMaterialsError(
+        err.message ||
+          "Unable to load Material Knowledge Base from server. Server-side validation is still required."
+      );
+    } finally {
+      setMaterialsLoading(false);
+    }
+  };
+
+  // Load saved products and material knowledge base when component mounts
   useEffect(() => {
     loadProducts();
+    loadMaterials();
   }, []);
 
   // Handle changes to general product info inputs
@@ -159,12 +210,21 @@ function ProductAnalysisPage({
 
   // Add a new material row
   const handleAddMaterial = () => {
+    const list = availableMaterials.length > 0 ? availableMaterials : fallbackMaterials;
+    const defaultMat = list.find((m) => m.name === "PET") || list[0] || {
+      name: "PET",
+      recyclabilityIndex: 85,
+    };
+
     const newMaterial = {
       id: Date.now(),
       name: "",
-      type: "PET (Plastic)",
+      type: defaultMat.name,
       weight: "",
-      recyclabilityIndex: 85,
+      recyclabilityIndex:
+        defaultMat.recyclabilityIndex !== null && defaultMat.recyclabilityIndex !== undefined
+          ? defaultMat.recyclabilityIndex
+          : "",
     };
     setMaterials((prev) => [...prev, newMaterial]);
   };
@@ -200,24 +260,28 @@ function ProductAnalysisPage({
     } else {
       materials.forEach((mat, idx) => {
         const itemNum = idx + 1;
-        if (!mat.name.trim() && !mat.type) {
-          errors.push(`Material #${itemNum}: Name is required.`);
-        }
+        const matType = mat.type || "PET";
+
         const w = Number(mat.weight);
         if (mat.weight === "" || isNaN(w) || w <= 0) {
           errors.push(
-            `Material #${itemNum}: Weight must be greater than 0 kg.`,
+            `Material #${itemNum} (${matType}): Weight must be greater than 0 kg.`,
           );
         }
-        const indexVal = Number(mat.recyclabilityIndex);
+
+        const indexVal = mat.recyclabilityIndex;
         if (
-          mat.recyclabilityIndex === "" ||
-          isNaN(indexVal) ||
-          indexVal < 0 ||
-          indexVal > 100
+          indexVal === "" ||
+          indexVal === null ||
+          indexVal === undefined ||
+          isNaN(Number(indexVal))
         ) {
           errors.push(
-            `Material #${itemNum}: Recyclability Index must be between 0 and 100.`,
+            `Material #${itemNum} (${matType}): Recyclability Index is unavailable in the Material Knowledge Base and cannot be used for scoring.`,
+          );
+        } else if (Number(indexVal) < 0 || Number(indexVal) > 100) {
+          errors.push(
+            `Material #${itemNum} (${matType}): Recyclability Index must be between 0 and 100.`,
           );
         }
       });
@@ -233,7 +297,8 @@ function ProductAnalysisPage({
       category: productInfo.category.trim(),
       description: productInfo.description.trim(),
       materials: materials.map((m) => ({
-        name: m.name.trim() || m.type,
+        name: m.type || m.name.trim() || "PET",
+        componentName: m.name.trim() || undefined,
         weight: Number(m.weight),
         recyclabilityIndex: Number(m.recyclabilityIndex),
       })),
@@ -403,26 +468,49 @@ function ProductAnalysisPage({
     });
 
     if (Array.isArray(product.materials) && product.materials.length > 0) {
+      const listToMatch = availableMaterials.length > 0 ? availableMaterials : fallbackMaterials;
       setMaterials(
-        product.materials.map((m, idx) => ({
-          id: m._id || Date.now() + idx,
-          name: m.name || "",
-          type: m.material || m.type || "PET (Plastic)",
-          weight: m.weight !== undefined && m.weight !== null ? m.weight : "",
-          recyclabilityIndex:
-            m.recyclabilityIndex !== undefined && m.recyclabilityIndex !== null
-              ? m.recyclabilityIndex
-              : 85,
-        })),
+        product.materials.map((m, idx) => {
+          const rawName = (m.material || m.type || m.name || "").trim();
+          // Match against Knowledge Base (or fallback)
+          const matched = listToMatch.find(
+            (k) =>
+              k.name.toLowerCase() === rawName.toLowerCase() ||
+              rawName.toLowerCase().startsWith(k.name.toLowerCase()) ||
+              rawName.toLowerCase().includes(k.name.toLowerCase()),
+          );
+          const resolvedType = matched ? matched.name : rawName || "PET";
+
+          return {
+            id: m._id || Date.now() + idx,
+            name: m.componentName || (rawName !== resolvedType ? rawName : "") || "",
+            type: resolvedType,
+            weight: m.weight !== undefined && m.weight !== null ? m.weight : "",
+            recyclabilityIndex:
+              m.recyclabilityIndex !== undefined && m.recyclabilityIndex !== null
+                ? m.recyclabilityIndex
+                : matched && matched.recyclabilityIndex !== null && matched.recyclabilityIndex !== undefined
+                  ? matched.recyclabilityIndex
+                  : "",
+          };
+        }),
       );
     } else {
+      const list = availableMaterials.length > 0 ? availableMaterials : fallbackMaterials;
+      const defaultMat = list.find((k) => k.name === "PET") || list[0] || {
+        name: "PET",
+        recyclabilityIndex: 85,
+      };
       setMaterials([
         {
           id: Date.now(),
           name: "",
-          type: "PET (Plastic)",
+          type: defaultMat.name,
           weight: "",
-          recyclabilityIndex: 85,
+          recyclabilityIndex:
+            defaultMat.recyclabilityIndex !== null && defaultMat.recyclabilityIndex !== undefined
+              ? defaultMat.recyclabilityIndex
+              : "",
         },
       ]);
     }
@@ -451,13 +539,21 @@ function ProductAnalysisPage({
       packaging: "",
       description: "",
     });
+    const list = availableMaterials.length > 0 ? availableMaterials : fallbackMaterials;
+    const defaultMat = list.find((k) => k.name === "PET") || list[0] || {
+      name: "PET",
+      recyclabilityIndex: 85,
+    };
     setMaterials([
       {
         id: Date.now(),
         name: "",
-        type: "PET (Plastic)",
+        type: defaultMat.name,
         weight: "",
-        recyclabilityIndex: 85,
+        recyclabilityIndex:
+          defaultMat.recyclabilityIndex !== null && defaultMat.recyclabilityIndex !== undefined
+            ? defaultMat.recyclabilityIndex
+            : "",
       },
     ]);
     setScoreResult(null);
@@ -698,6 +794,41 @@ function ProductAnalysisPage({
               </button>
             </div>
 
+            {materialsError && (
+              <div
+                className="error-banner"
+                role="alert"
+                style={{
+                  marginBottom: "16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "12px",
+                  backgroundColor: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  color: "#991b1b",
+                  padding: "12px 16px",
+                  borderRadius: "8px",
+                }}
+              >
+                <div>
+                  <strong>⚠️ Material Knowledge Base Error:</strong> {materialsError}
+                  <div style={{ fontSize: "0.85rem", marginTop: "4px", color: "#b91c1c" }}>
+                    The server Material Knowledge Base failed to load. Materials are marked as <strong>Offline Fallback</strong>. Server-side validation against the Material Knowledge Base is still required before calculating scores or saving products.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn-secondary btn-sm"
+                  onClick={loadMaterials}
+                  disabled={materialsLoading}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  {materialsLoading ? "Connecting..." : "↻ Retry"}
+                </button>
+              </div>
+            )}
+
             <div className="materials-list">
               {materials.map((mat, index) => (
                 <MaterialRowInput
@@ -707,6 +838,8 @@ function ProductAnalysisPage({
                   onChange={handleMaterialChange}
                   onRemove={handleRemoveMaterial}
                   canRemove={materials.length > 1}
+                  availableMaterials={availableMaterials}
+                  isOffline={Boolean(materialsError) || (!materialsLoading && availableMaterials.length === 0)}
                 />
               ))}
             </div>

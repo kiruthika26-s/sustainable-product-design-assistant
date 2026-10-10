@@ -1,11 +1,28 @@
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
+const { validateAndNormalizeMaterials } = require('../utils/materialValidator');
 
 // @desc    Create a new product
 // @route   POST /api/products
 // @access  Public
 const createProduct = async (req, res) => {
   try {
+    if (!req.body || !req.body.materials || !Array.isArray(req.body.materials) || req.body.materials.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Product must include at least one valid material from the Material Knowledge Base.'
+      });
+    }
+
+    const validation = await validateAndNormalizeMaterials(req.body.materials);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: validation.error
+      });
+    }
+    req.body.materials = validation.materials;
+
     const product = new Product(req.body);
     const savedProduct = await product.save();
     return res.status(201).json({
@@ -92,6 +109,26 @@ const updateProduct = async (req, res) => {
         success: false,
         error: 'Invalid product ID format'
       });
+    }
+
+    const materialsIncluded =
+      req.body && Object.hasOwn(req.body, 'materials');
+    if (materialsIncluded) {
+      if (!req.body.materials || !Array.isArray(req.body.materials) || req.body.materials.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'Product update materials field must be a non-empty array.'
+        });
+      }
+
+      const validation = await validateAndNormalizeMaterials(req.body.materials);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          error: validation.error
+        });
+      }
+      req.body.materials = validation.materials;
     }
 
     const product = await Product.findByIdAndUpdate(id, req.body, {

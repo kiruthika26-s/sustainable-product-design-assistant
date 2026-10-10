@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const { calculateRecyclabilityScore } = require('../utils/scoringEngine');
+const { validateAndNormalizeMaterials } = require('../utils/materialValidator');
 
 // @desc    Calculate recyclability score for a stored product by ID
 // @route   GET /api/products/:id/score
@@ -44,7 +45,26 @@ const getScoreByProductId = async (req, res) => {
 // @access  Public
 const calculateSimulatedScore = async (req, res) => {
   try {
-    const scoreData = calculateRecyclabilityScore(req.body);
+    const rawMaterials = req.body?.materials;
+    if (!rawMaterials || !Array.isArray(rawMaterials) || rawMaterials.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'At least one material is required to calculate recyclability score.'
+      });
+    }
+
+    const validation = await validateAndNormalizeMaterials(rawMaterials);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        error: validation.error
+      });
+    }
+
+    const scoreData = calculateRecyclabilityScore({
+      ...req.body,
+      materials: validation.materials
+    });
 
     return res.status(200).json({
       success: true,

@@ -21,6 +21,9 @@ app.get('/', (req, res) => {
     res.send('API is running');
 });
 
+// Material Knowledge Base Routes
+app.use('/api/materials', require('./routes/materialRoutes'));
+
 // Product Routes
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/products', require('./routes/scoringRoutes'));
