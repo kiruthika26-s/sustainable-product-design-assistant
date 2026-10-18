@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { calculateScore, createProduct, createProductVersion } from '../services/api';
+import {
+  calculateScore,
+  simulateProductSwap,
+  createProduct,
+  createProductVersion
+} from '../services/api';
 import { MATERIAL_DATABASE } from '../utils/materialDb';
 
 function WhatIfSimulationView({ products, simulationPreset, onProductSaved }) {
@@ -20,26 +25,61 @@ function WhatIfSimulationView({ products, simulationPreset, onProductSaved }) {
   const [saveSuccessMsg, setSaveSuccessMsg] = useState(null);
   const [saveErrorMsg, setSaveErrorMsg] = useState(null);
 
+  // Synchronize selectedProductId when products array is loaded or updated
+  useEffect(() => {
+    if (products.length > 0) {
+      const exists = products.some((p) => (p._id || p.id) === selectedProductId);
+      if (!exists || !selectedProductId) {
+        setSelectedProductId(products[0]._id || products[0].id);
+        setMaterialIndexToSwap(0);
+      }
+    }
+  }, [products, selectedProductId]);
+
   const activeProduct =
     products.find((p) => (p._id || p.id) === selectedProductId) ||
     (products.length > 0 ? products[0] : null);
 
+  // Keep material index in valid bounds
+  const currentMaterialCount = activeProduct?.materials?.length || 0;
+  const safeMaterialIndex = Math.min(
+    Math.max(0, Number(materialIndexToSwap) || 0),
+    Math.max(0, currentMaterialCount - 1)
+  );
+
   // Sync simulation preset if triggered from Recommendations
   useEffect(() => {
-    if (simulationPreset && activeProduct?.materials) {
+    if (simulationPreset && products.length > 0) {
       if (simulationPreset.alternativeMaterialName) {
         setSelectedAltMaterialName(simulationPreset.alternativeMaterialName);
       }
       if (simulationPreset.targetMaterialName) {
-        const idx = activeProduct.materials.findIndex(
-          (m) => m.name.toLowerCase() === simulationPreset.targetMaterialName.toLowerCase()
+        const targetLower = simulationPreset.targetMaterialName.toLowerCase();
+        let targetProduct = activeProduct;
+        let idx = targetProduct?.materials?.findIndex(
+          (m) => m.name.toLowerCase() === targetLower
         );
-        if (idx !== -1) {
+
+        if (idx === -1 || idx === undefined) {
+          const matchedProd = products.find((p) =>
+            p.materials?.some((m) => m.name.toLowerCase() === targetLower)
+          );
+          if (matchedProd) {
+            targetProduct = matchedProd;
+            setSelectedProductId(matchedProd._id || matchedProd.id);
+            idx = matchedProd.materials.findIndex(
+              (m) => m.name.toLowerCase() === targetLower
+            );
+          }
+        }
+
+        if (idx !== -1 && idx !== undefined) {
           setMaterialIndexToSwap(idx);
         }
       }
+      setSimulationResult(null);
     }
-  }, [simulationPreset, activeProduct]);
+  }, [simulationPreset, products, activeProduct]);
 
   const handleRunSimulation = async () => {
     if (!activeProduct || !activeProduct.materials || activeProduct.materials.length === 0) {
@@ -54,64 +94,97 @@ function WhatIfSimulationView({ products, simulationPreset, onProductSaved }) {
 
     const refMaterial =
       MATERIAL_DATABASE.find((m) => m.name === selectedAltMaterialName) || MATERIAL_DATABASE[0];
-
-    // 1. Calculate Original Score
-    const originalPayload = {
-      name: activeProduct.name,
-      category: activeProduct.category,
-      description: activeProduct.description,
-      materials: activeProduct.materials.map((m) => ({
-        name: m.name,
-        weight: Number(m.weight),
-        recyclabilityIndex: Number(m.recyclabilityIndex)
-      }))
-    };
-
-    // 2. Prepare Swapped Payload
-    const swappedMaterials = activeProduct.materials.map((m, idx) => {
-      if (idx === Number(materialIndexToSwap)) {
-        return {
-          name: refMaterial.name,
-          weight: Number(m.weight),
-          recyclabilityIndex: refMaterial.recyclabilityIndex
-        };
-      }
-      return {
-        name: m.name,
-        weight: Number(m.weight),
-        recyclabilityIndex: Number(m.recyclabilityIndex)
-      };
-    });
-
-    const swappedPayload = {
-      ...originalPayload,
-      materials: swappedMaterials
-    };
+    const targetIdx = safeMaterialIndex;
+    const prodId = activeProduct._id || activeProduct.id;
 
     try {
-      const origRes = await calculateScore(originalPayload);
-      const swapRes = await calculateScore(swappedPayload);
-
-      if (origRes.success && swapRes.success) {
-        const origScore = origRes.data.finalScore;
-        const swapScore = swapRes.data.finalScore;
-        const diff = swapScore - origScore;
-
-        setLastSwappedPayload(swappedPayload);
-        setSimulationResult({
-          productName: activeProduct.name,
-          swappedMaterialOld: activeProduct.materials[materialIndexToSwap]?.name,
-          swappedMaterialNew: refMaterial.name,
-          originalScore: origScore,
-          originalGrade: origRes.data.grade,
-          alternativeScore: swapScore,
-          alternativeGrade: swapRes.data.grade,
-          difference: diff,
-          originalReport: origRes.data,
-          alternativeReport: swapRes.data
+      if (prodId) {
+        // Primary path: Use backend simulation endpoint backed by DB product & material indices
+        const simRes = await simulateProductSwap(prodId, {
+          materialIndex: targetIdx,
+          alternativeMaterial: {
+            name: refMaterial.name,
+            recyclabilityIndex: refMaterial.recyclabilityIndex
+          }
         });
+
+        if (simRes && simRes.success) {
+          const simData = simRes.data;
+          setLastSwappedPayload(simData.swappedPayload);
+          setSimulationResult({
+            productName: simData.productName,
+            swappedMaterialOld: simData.swappedMaterialOld,
+            swappedMaterialNew: simData.swappedMaterialNew,
+            originalScore: simData.originalScore,
+            originalGrade: simData.originalGrade,
+            alternativeScore: simData.simulatedScore,
+            alternativeGrade: simData.simulatedGrade,
+            difference: simData.difference,
+            originalReport: simData.originalReport,
+            alternativeReport: simData.simulatedReport
+          });
+        } else {
+          setError(simRes?.error || 'Failed to compute simulation scores.');
+        }
       } else {
-        setError('Failed to compute simulation scores.');
+        // Fallback for unsaved product payload using scoring calculation endpoints
+        const originalPayload = {
+          name: activeProduct.name,
+          category: activeProduct.category,
+          description: activeProduct.description,
+          materials: activeProduct.materials.map((m) => ({
+            name: m.name,
+            weight: Number(m.weight),
+            recyclabilityIndex: Number(m.recyclabilityIndex)
+          }))
+        };
+
+        const swappedMaterials = activeProduct.materials.map((m, idx) => {
+          if (idx === targetIdx) {
+            return {
+              name: refMaterial.name,
+              weight: Number(m.weight),
+              recyclabilityIndex: Number(refMaterial.recyclabilityIndex)
+            };
+          }
+          return {
+            name: m.name,
+            weight: Number(m.weight),
+            recyclabilityIndex: Number(m.recyclabilityIndex)
+          };
+        });
+
+        const swappedPayload = {
+          ...originalPayload,
+          materials: swappedMaterials
+        };
+
+        const [origRes, swapRes] = await Promise.all([
+          calculateScore(originalPayload),
+          calculateScore(swappedPayload)
+        ]);
+
+        if (origRes && origRes.success && swapRes && swapRes.success) {
+          const origScore = origRes.data.finalScore;
+          const swapScore = swapRes.data.finalScore;
+          const diff = swapScore - origScore;
+
+          setLastSwappedPayload(swappedPayload);
+          setSimulationResult({
+            productName: activeProduct.name,
+            swappedMaterialOld: activeProduct.materials[targetIdx]?.name,
+            swappedMaterialNew: refMaterial.name,
+            originalScore: origScore,
+            originalGrade: origRes.data.grade,
+            alternativeScore: swapScore,
+            alternativeGrade: swapRes.data.grade,
+            difference: diff,
+            originalReport: origRes.data,
+            alternativeReport: swapRes.data
+          });
+        } else {
+          setError('Failed to compute simulation scores.');
+        }
       }
     } catch (err) {
       setError(err.message || 'Server error running what-if simulation.');
@@ -210,9 +283,9 @@ function WhatIfSimulationView({ products, simulationPreset, onProductSaved }) {
                 <div className="form-group col">
                   <label>Replace Component Material:</label>
                   <select
-                    value={materialIndexToSwap}
+                    value={safeMaterialIndex}
                     onChange={(e) => {
-                      setMaterialIndexToSwap(e.target.value);
+                      setMaterialIndexToSwap(Number(e.target.value));
                       setSimulationResult(null);
                     }}
                   >
@@ -263,7 +336,7 @@ function WhatIfSimulationView({ products, simulationPreset, onProductSaved }) {
 
           <div className="simulation-comparison-grid">
             {/* Original Score Box */}
-            <div className="score-badge-card grade-b">
+            <div className={`score-badge-card grade-${simulationResult.originalGrade?.toLowerCase() || 'b'}`}>
               <div className="score-number">{simulationResult.originalScore}%</div>
               <div className="score-details">
                 <span className="grade-pill">Grade {simulationResult.originalGrade}</span>
@@ -280,11 +353,11 @@ function WhatIfSimulationView({ products, simulationPreset, onProductSaved }) {
             </div>
 
             {/* Alternative Score Box */}
-            <div className="score-badge-card grade-a">
+            <div className={`score-badge-card grade-${simulationResult.alternativeGrade?.toLowerCase() || 'a'}`}>
               <div className="score-number">{simulationResult.alternativeScore}%</div>
               <div className="score-details">
                 <span className="grade-pill">Grade {simulationResult.alternativeGrade}</span>
-                <span className="rating-text">Alternative Score</span>
+                <span className="rating-text">Simulated Score</span>
               </div>
             </div>
           </div>

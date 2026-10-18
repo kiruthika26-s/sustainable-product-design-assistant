@@ -101,6 +101,15 @@ export async function calculateScore(productData) {
   return await parseJsonResponse(response);
 }
 
+export async function simulateProductSwap(id, simulationData) {
+  const response = await fetch(`${API_BASE_URL}/${id}/simulate`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(simulationData)
+  });
+  return await parseJsonResponse(response);
+}
+
 export async function getScoreByProductId(id) {
   const response = await fetch(`${API_BASE_URL}/${id}/score`, {
     method: 'GET',
