@@ -30,6 +30,14 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/products', require('./routes/scoringRoutes'));
 
+// 404 Handler for unmatched routes
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `Route not found: ${req.method} ${req.originalUrl}`
+  });
+});
+
 // Server Port
 const PORT = process.env.PORT || 5000;
 

@@ -80,6 +80,19 @@ export async function loginUser(userData) {
   return data;
 }
 
+export async function loginWithGoogle(credential) {
+  const response = await fetch(`${AUTH_BASE_URL}/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token: credential })
+  });
+  const data = await parseJsonResponse(response);
+  if (data?.data?.token) {
+    setAuthToken(data.data.token);
+  }
+  return data;
+}
+
 export async function getMe() {
   const response = await fetch(`${AUTH_BASE_URL}/me`, {
     method: 'GET',
