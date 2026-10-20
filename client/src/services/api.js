@@ -4,12 +4,32 @@
  */
 
 const API_BASE_URL = '/api/products';
+const AUTH_BASE_URL = '/api/auth';
+
+// Token Management Helpers
+export function getAuthToken() {
+  return localStorage.getItem('sustainability_app_token') || '';
+}
+
+export function setAuthToken(token) {
+  if (token) {
+    localStorage.setItem('sustainability_app_token', token);
+  } else {
+    localStorage.removeItem('sustainability_app_token');
+  }
+}
+
+function getHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getAuthToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
 
 /**
  * Safely parses response body and throws informative error if request fails or response is empty.
- *
- * @param {Response} response - Fetch response object
- * @returns {Promise<Object>} Parsed JSON object
  */
 async function parseJsonResponse(response) {
   const rawText = await response.text();
@@ -30,134 +50,129 @@ async function parseJsonResponse(response) {
   return data;
 }
 
-/**
- * Calculates real-time recyclability score for a product specification payload.
- * Route: POST /api/products/score/calculate
- *
- * @param {Object} productData - Product payload containing materials array
- * @returns {Promise<Object>} Calculated score breakdown object
- */
+/* ==========================================================================
+   AUTHENTICATION ENDPOINTS
+   ========================================================================== */
+
+export async function registerUser(userData) {
+  const response = await fetch(`${AUTH_BASE_URL}/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData)
+  });
+  const data = await parseJsonResponse(response);
+  if (data?.data?.token) {
+    setAuthToken(data.data.token);
+  }
+  return data;
+}
+
+export async function loginUser(userData) {
+  const response = await fetch(`${AUTH_BASE_URL}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(userData)
+  });
+  const data = await parseJsonResponse(response);
+  if (data?.data?.token) {
+    setAuthToken(data.data.token);
+  }
+  return data;
+}
+
+export async function getMe() {
+  const response = await fetch(`${AUTH_BASE_URL}/me`, {
+    method: 'GET',
+    headers: getHeaders()
+  });
+  return await parseJsonResponse(response);
+}
+
+/* ==========================================================================
+   PRODUCT & SCORING ENDPOINTS
+   ========================================================================== */
+
 export async function calculateScore(productData) {
   const response = await fetch(`${API_BASE_URL}/score/calculate`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: getHeaders(),
     body: JSON.stringify(productData)
   });
-
   return await parseJsonResponse(response);
 }
 
-/**
- * Creates and saves a new product to MongoDB database.
- * Route: POST /api/products
- *
- * @param {Object} productData - Product details and specifications
- * @returns {Promise<Object>} Created product object
- */
+export async function simulateProductSwap(id, simulationData) {
+  const response = await fetch(`${API_BASE_URL}/${id}/simulate`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(simulationData)
+  });
+  return await parseJsonResponse(response);
+}
+
+export async function getScoreByProductId(id) {
+  const response = await fetch(`${API_BASE_URL}/${id}/score`, {
+    method: 'GET',
+    headers: getHeaders()
+  });
+  return await parseJsonResponse(response);
+}
+
 export async function createProduct(productData) {
   const response = await fetch(API_BASE_URL, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: getHeaders(),
     body: JSON.stringify(productData)
   });
-
   return await parseJsonResponse(response);
 }
 
-/**
- * Retrieves all stored products from MongoDB database.
- * Route: GET /api/products
- *
- * @returns {Promise<Object>} Array of product documents
- */
 export async function getProducts() {
   const response = await fetch(API_BASE_URL, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: getHeaders()
   });
-
   return await parseJsonResponse(response);
 }
 
-/**
- * Deletes a product from MongoDB database by ID.
- * Route: DELETE /api/products/:id
- *
- * @param {string} id - MongoDB ObjectId string
- * @returns {Promise<Object>} Deletion confirmation message
- */
-export async function deleteProduct(id) {
-  const response = await fetch(`${API_BASE_URL}/${id}`, {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
-
-  return await parseJsonResponse(response);
-}
-
-/**
- * Updates an existing product in MongoDB database by ID.
- * Route: PUT /api/products/:id
- *
- * @param {string} id - MongoDB ObjectId string
- * @param {Object} productData - Updated product details and specifications
- * @returns {Promise<Object>} Updated product object
- */
-export async function updateProduct(id, productData) {
-  const response = await fetch(`${API_BASE_URL}/${id}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(productData)
-  });
-
-  return await parseJsonResponse(response);
-}
-
-/**
- * Retrieves a single product by ID from MongoDB database.
- * Route: GET /api/products/:id
- *
- * @param {string} id - MongoDB ObjectId string
- * @returns {Promise<Object>} Product document
- */
 export async function getProductById(id) {
   const response = await fetch(`${API_BASE_URL}/${id}`, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: getHeaders()
   });
-
   return await parseJsonResponse(response);
 }
+
+export async function updateProduct(id, productData) {
+  const response = await fetch(`${API_BASE_URL}/${id}`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify(productData)
+  });
+  return await parseJsonResponse(response);
+}
+
+export async function deleteProduct(id) {
+  const response = await fetch(`${API_BASE_URL}/${id}`, {
+    method: 'DELETE',
+    headers: getHeaders()
+  });
+  return await parseJsonResponse(response);
+}
+
+/* ==========================================================================
+   BACKWARD-COMPATIBILITY ALIASES
+   ========================================================================== */
 
 /**
- * Retrieves the recyclability score calculation for a saved product by ID.
- * Route: GET /api/products/:id/score
- *
- * @param {string} id - MongoDB ObjectId string
- * @returns {Promise<Object>} Calculated score breakdown object
+ * Backward-compatible alias for getScoreByProductId(id)
+ * Used by ProductAnalysisPage and SimulationPage
  */
-export async function getProductScore(id) {
-  const response = await fetch(`${API_BASE_URL}/${id}/score`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
-  });
+export const getProductScore = getScoreByProductId;
 
-  return await parseJsonResponse(response);
-}
+/* ==========================================================================
+   MATERIAL KNOWLEDGE BASE ENDPOINTS
+   ========================================================================== */
 
 const MATERIALS_API_BASE_URL = '/api/materials';
 
@@ -170,9 +185,7 @@ const MATERIALS_API_BASE_URL = '/api/materials';
 export async function getMaterials() {
   const response = await fetch(MATERIALS_API_BASE_URL, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: getHeaders()
   });
 
   return await parseJsonResponse(response);
@@ -188,9 +201,7 @@ export async function getMaterials() {
 export async function getMaterialById(id) {
   const response = await fetch(`${MATERIALS_API_BASE_URL}/${id}`, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: getHeaders()
   });
 
   return await parseJsonResponse(response);
@@ -206,12 +217,49 @@ export async function getMaterialById(id) {
 export async function getMaterialByName(name) {
   const response = await fetch(`${MATERIALS_API_BASE_URL}/name/${encodeURIComponent(name)}`, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    }
+    headers: getHeaders()
   });
 
   return await parseJsonResponse(response);
 }
 
+/* ==========================================================================
+   VERSIONING & PDF REPORT ENDPOINTS
+   ========================================================================== */
 
+export async function getProductVersions(id) {
+  const response = await fetch(`${API_BASE_URL}/${id}/versions`, {
+    method: 'GET',
+    headers: getHeaders()
+  });
+  return await parseJsonResponse(response);
+}
+
+export async function createProductVersion(id, versionData) {
+  const response = await fetch(`${API_BASE_URL}/${id}/versions`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(versionData)
+  });
+  return await parseJsonResponse(response);
+}
+
+export async function downloadProductPdf(id, filename = 'sustainability_report.pdf') {
+  const token = getAuthToken();
+  const url = `${API_BASE_URL}/${id}/pdf${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to generate PDF report (${response.status})`);
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}

@@ -38,7 +38,15 @@ const productSchema = new mongoose.Schema(
     description: { type: String, trim: true },
     materials: [materialSchema],
     packaging: packagingSchema,
-    components: [componentSchema]
+    components: [componentSchema],
+    version: { type: Number, default: 1 },
+    parentProductId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', default: null },
+    lifecycleStage: {
+      type: String,
+      enum: ['Design', 'Manufacture', 'Distribution', 'Use', 'End-of-Life'],
+      default: 'Design'
+    },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
   },
   {
     timestamps: true

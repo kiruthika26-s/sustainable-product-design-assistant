@@ -5,16 +5,26 @@ const {
   getProducts,
   getProductById,
   updateProduct,
-  deleteProduct
+  deleteProduct,
+  createProductVersion,
+  getProductVersions
 } = require('../controllers/productController');
+const { generateProductPdfReport } = require('../controllers/pdfController');
+const { optionalAuth } = require('../middleware/authMiddleware');
 
 router.route('/')
-  .post(createProduct)
+  .post(optionalAuth, createProduct)
   .get(getProducts);
+
+router.get('/:id/pdf', generateProductPdfReport);
+
+router.route('/:id/versions')
+  .get(getProductVersions)
+  .post(optionalAuth, createProductVersion);
 
 router.route('/:id')
   .get(getProductById)
-  .put(updateProduct)
-  .delete(deleteProduct);
+  .put(optionalAuth, updateProduct)
+  .delete(optionalAuth, deleteProduct);
 
 module.exports = router;

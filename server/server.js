@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dns = require('dns');
 try { dns.setServers(['8.8.8.8', '8.8.4.4']); } catch (e) {}
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
 
@@ -24,7 +25,8 @@ app.get('/', (req, res) => {
 // Material Knowledge Base Routes
 app.use('/api/materials', require('./routes/materialRoutes'));
 
-// Product Routes
+// Authentication Routes
+app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/products', require('./routes/scoringRoutes'));
 
