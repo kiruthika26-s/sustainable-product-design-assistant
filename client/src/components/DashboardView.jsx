@@ -25,7 +25,6 @@ function DashboardView({ products, onSelectProduct, onNavigate }) {
       {/* Metric Cards Grid */}
       <div className="metrics-grid">
         <div className="metric-card">
-          <div className="metric-icon">📦</div>
           <div className="metric-data">
             <span className="metric-value">{totalProducts}</span>
             <span className="metric-label">Total Saved Products</span>
@@ -33,7 +32,6 @@ function DashboardView({ products, onSelectProduct, onNavigate }) {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon">🔬</div>
           <div className="metric-data">
             <span className="metric-value">{totalMaterials}</span>
             <span className="metric-label">Materials Tracked</span>
@@ -41,7 +39,6 @@ function DashboardView({ products, onSelectProduct, onNavigate }) {
         </div>
 
         <div className="metric-card">
-          <div className="metric-icon">🏷️</div>
           <div className="metric-data">
             <span className="metric-value">{Object.keys(categoryCounts).length}</span>
             <span className="metric-label">Active Categories</span>
@@ -49,7 +46,6 @@ function DashboardView({ products, onSelectProduct, onNavigate }) {
         </div>
 
         <div className="metric-card highlight">
-          <div className="metric-icon">⚡</div>
           <div className="metric-data">
             <span className="metric-value">Dynamic</span>
             <span className="metric-label">Engine Active</span>
@@ -86,16 +82,16 @@ function DashboardView({ products, onSelectProduct, onNavigate }) {
           <h3>Quick Operations</h3>
           <div className="shortcuts-list">
             <button className="shortcut-btn" onClick={() => onNavigate('create')}>
-              <span>➕</span> Evaluate New Product Specification
+              Evaluate New Product Specification
             </button>
             <button className="shortcut-btn" onClick={() => onNavigate('whatif')}>
-              <span>🔄</span> Run What-If Material Simulation
+              Run What-If Material Simulation
             </button>
             <button className="shortcut-btn" onClick={() => onNavigate('compare')}>
-              <span>⚖️</span> Compare 2 Saved Products
+              Compare 2 Saved Products
             </button>
             <button className="shortcut-btn" onClick={() => onNavigate('recommendations')}>
-              <span>💡</span> View Eco Recommendations
+              View Eco Recommendations
             </button>
           </div>
         </div>

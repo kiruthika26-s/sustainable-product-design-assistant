@@ -186,7 +186,7 @@ function ProductDetailModal({ product, onClose, onRefresh }) {
                 setVersionErrorMsg(null);
               }}
             >
-              {showVersionForm ? '✕ Close Iteration Form' : '🌿 Create New Version / Iteration'}
+              {showVersionForm ? '✕ Close Iteration Form' : 'Create New Version / Iteration'}
             </button>
             <button
               className="btn-primary btn-pdf"
@@ -194,7 +194,7 @@ function ProductDetailModal({ product, onClose, onRefresh }) {
               disabled={pdfLoading}
               style={{ marginTop: 0 }}
             >
-              {pdfLoading ? 'Generating PDF Report...' : '📄 Download PDF Sustainability Report'}
+              {pdfLoading ? 'Generating PDF Report...' : 'Download PDF Sustainability Report'}
             </button>
           </div>
 
@@ -207,7 +207,7 @@ function ProductDetailModal({ product, onClose, onRefresh }) {
           {/* New Version Creation Form Card */}
           {showVersionForm && (
             <div className="card" style={{ backgroundColor: '#fcfdfc', borderColor: '#a5d6a7', marginBottom: '22px' }}>
-              <h4 style={{ color: '#1b4d3e', marginTop: 0 }}>🌿 Branch into New Product Iteration</h4>
+              <h4 style={{ color: '#1b4d3e', marginTop: 0 }}>Branch into New Product Iteration</h4>
               <p style={{ fontSize: '0.85rem', color: '#4a5568', margin: '0 0 14px 0' }}>
                 Create a linked revision with modified material parameters and lifecycle stage.
               </p>

@@ -129,7 +129,7 @@ function AuthModal({ onClose, onAuthSuccess }) {
     <div className="modal-backdrop">
       <div className="modal-content auth-modal-card card">
         <div className="modal-header">
-          <h2>{isLogin ? '🔑 Account Login' : '📝 Register Manufacturer Account'}</h2>
+          <h2>{isLogin ? 'Account Login' : 'Register Manufacturer Account'}</h2>
           <button className="btn-close" onClick={onClose}>✕</button>
         </div>
 

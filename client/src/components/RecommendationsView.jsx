@@ -21,7 +21,6 @@ function RecommendationsView({ products, currentScoreResult, onApplyAlternative 
 
         {recommendations.length === 0 ? (
           <div className="placeholder-container">
-            <div className="placeholder-icon">💡</div>
             <p>
               {targetMaterials.length === 0
                 ? 'Create or select a product to generate material substitution recommendations.'
@@ -63,7 +62,7 @@ function RecommendationsView({ products, currentScoreResult, onApplyAlternative 
                   style={{ marginTop: '12px', width: '100%', fontSize: '0.85rem' }}
                   onClick={() => onApplyAlternative && onApplyAlternative(rec)}
                 >
-                  ⚡ Test in What-If Simulation
+                  Test in What-If Simulation
                 </button>
               </div>
             ))}

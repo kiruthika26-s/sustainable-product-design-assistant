@@ -685,7 +685,6 @@ function App() {
               </div>
             ) : (
               <div className="placeholder-container">
-                <div className="placeholder-icon">🌱</div>
                 <p>
                   Fill out the product specifications and materials form, then
                   click <strong>"Calculate Recyclability Score"</strong> to view
@@ -788,7 +787,7 @@ function App() {
                             setActiveTab("whatif");
                           }}
                         >
-                          ⚡ Simulate
+                          Simulate
                         </button>
                       </div>
                     </div>

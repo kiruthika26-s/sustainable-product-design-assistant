@@ -323,7 +323,7 @@ function WhatIfSimulationView({ products, simulationPreset, onProductSaved }) {
               disabled={simulating}
               onClick={handleRunSimulation}
             >
-              {simulating ? 'Calculating What-If Simulation...' : '⚡ Run What-If Simulation'}
+              {simulating ? 'Calculating What-If Simulation...' : 'Run What-If Simulation'}
             </button>
           </div>
         )}
@@ -382,7 +382,7 @@ function WhatIfSimulationView({ products, simulationPreset, onProductSaved }) {
                   disabled={savingAsVersion || savingAsProduct}
                   onClick={handleSaveAsNewVersion}
                 >
-                  {savingAsVersion ? 'Saving Version...' : '🌿 Save as New Version / Revision'}
+                  {savingAsVersion ? 'Saving Version...' : 'Save as New Version / Revision'}
                 </button>
               </div>
               <div className="col">
@@ -393,7 +393,7 @@ function WhatIfSimulationView({ products, simulationPreset, onProductSaved }) {
                   disabled={savingAsProduct || savingAsVersion}
                   onClick={handleSaveAsNewProduct}
                 >
-                  {savingAsProduct ? 'Saving Product...' : '💾 Save as Standalone Product'}
+                  {savingAsProduct ? 'Saving Product...' : 'Save as Standalone Product'}
                 </button>
               </div>
             </div>
